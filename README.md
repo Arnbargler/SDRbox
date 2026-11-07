@@ -23,6 +23,7 @@ The user-approved photorealistic concept shows the same layout without the tempo
 | --- | --- |
 | [HANDOFF.md](HANDOFF.md) | **Start here next session** — verified status, decisions, immediate next steps |
 | [HARDWARE.md](HARDWARE.md) | Physical rack, PC, displays, SDR, radio tests, unknowns |
+| [TOUCHSCREEN.md](TOUCHSCREEN.md) | **Verified dual-display touch mapping** and Linux Mint login-autostart instructions |
 | [REQUIREMENTS.md](REQUIREMENTS.md) | Functional requirements and acceptance tests |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Proposed receiving/scanning pipeline, band model, constraints |
 | [UI.md](UI.md) | Approved design, layout and controls |

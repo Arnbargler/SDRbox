@@ -17,7 +17,7 @@ _Last reviewed: 2026-11-07._
 
 **Verification:** On 2026-11-07 the user reported results receiving the **118.800 MHz** Ottawa aviation frequency in GQRX. Earlier, changing GQRX's input from a generic RTL device to the **Realtek** device corrected an apparent frequency offset. Reception near GMRS/FRS channel 1 with a walkie-talkie was tested in an earlier session; reducing latency improved it significantly. These tests do **not** demonstrate an operational automatic scanner.
 
-**Do not assume:** Exact OptiPlex model, current system RAM, installed Mint release, touch controller/coordinate mapping, desktop scaling and actual XRandR output identifiers, USB port topology, NESDR revision, antenna type/connector, or sampled-band performance. Measure on the actual box.
+**Unverified details:** Exact OptiPlex model, RAM, Linux Mint release, DPI scaling, NESDR revision, antenna/connector, audio output routing and measured sample bandwidth. **Verified:** both display output identifiers/positions and corrected touch USB-port mapping (see [TOUCHSCREEN.md](TOUCHSCREEN.md)); verify touch-script persistence after reboot. Measure remaining items on the actual box.
 
 ## Capture a reproducible baseline
 
@@ -39,7 +39,7 @@ Then (after closing GQRX and other SDR clients, which otherwise lock the dongle)
 rtl_test -t
 ```
 
-Record actual capture stability, usable sample rates, gain behavior, center-frequency/DC spur, input device identification, display placement, desktop scaling and touchscreen coordinate mapping (the pixel resolutions are already known).
+Record actual capture stability, usable sample rates, gain behavior, center-frequency/DC spur, input device identification, audio output, scaling, and Chromium kiosk window placement. **Display positions and touch mapping have already been tested**, but restart behavior still needs verification.
 
 ## Layout / I/O
 

@@ -9,7 +9,7 @@ _Last reviewed: 2026-11-07._
 | Operating system | **Linux Mint** — user corrected an earlier mistaken Xubuntu assumption |
 | Computer | **Dell OptiPlex**, installed at the bottom of a small **tec MOJO-style rack**; exact model/CPU/RAM not yet verified |
 | Upper display | **1U monitor — 1424 × 280 pixels** (user-confirmed native resolution); proposed persistent status strip |
-| Middle display | **2U monitor — 1280 × 400 pixels** (user-confirmed native resolution); proposed touch-first main controls; touch input/mapping still needs verification |
+| Middle display | **2U monitor — 1280 × 400 pixels** (user-confirmed native resolution); touch works accurately after mapping to HDMI-2; see [TOUCHSCREEN.md](TOUCHSCREEN.md) |
 | SDR | **NooElec NESDR Smart**, older unit (user bought around 2018); RTL-SDR family |
 | Current app | **GQRX**, operational on Linux Mint |
 | Antenna | Temporary telescopic antenna used during proof of concept, to be relocated eventually |
@@ -43,7 +43,7 @@ Record actual capture stability, usable sample rates, gain behavior, center-freq
 
 ## Layout / I/O
 
-Upper display = **1424×280 always-visible status** (aspect ratio ~5.09:1); lower display = **1280×400 touch controls** (aspect ratio 3.20:1). Both are driven by the same Dell and app. The mockup is the agreed design target, not a photo of implemented software.
+Upper display = **1424×280 always-visible status** (aspect ratio ~5.09:1, HDMI-1, touch disabled); lower display = **1280×400 touch controls** (aspect ratio 3.20:1, HDMI-2, touch mapped correctly). Both are driven by the same Dell and app. **Touch mapping has been verified interactively** using USB paths; **reboot/autostart persistence has not yet been confirmed**. See [TOUCHSCREEN.md](TOUCHSCREEN.md). The mockup is the agreed design target, not a photo of implemented software.
 
 ## RF constraints
 

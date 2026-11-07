@@ -1,6 +1,6 @@
 # SDRbox
 
-**SDRbox** is a compact, Linux-based **radio scanner appliance first**, with SDR exploration as a secondary/advanced mode. The project uses a Dell OptiPlex in a small rack with a narrow **1U status display** above a larger **2U control display**. It currently runs **Linux Mint** and receives with a **NooElec NESDR Smart (RTL-SDR)**. An **SDRplay RSP1A** may replace the dongle later; v1 must not depend on that upgrade.
+**SDRbox** is a compact, Linux-based **radio scanner appliance first**, with SDR exploration as a secondary/advanced mode. The project uses a Dell OptiPlex in a small rack with a narrow **1U status display** above a larger **2U control display**. The displays are **1424×280 px (upper 1U)** and **1280×400 px (lower 2U)**. It currently runs **Linux Mint** and receives with a **NooElec NESDR Smart (RTL-SDR)**. An **SDRplay RSP1A** may replace the dongle later; v1 must not depend on that upgrade.
 
 > **Status — 2026-11-07:** Hardware and GQRX reception proven; **no custom scanner software exists yet**. A live signal was observed around **118.800 MHz** in the aviation band. The screenshots below are **design concepts**, not screenshots of functioning SDRbox software.
 

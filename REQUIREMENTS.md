@@ -10,7 +10,7 @@ Create a simple, dedicated, receive-only desktop/rack scanner that boots into a 
 
 | ID | Requirement | Initial acceptance test |
 | --- | --- | --- |
-| R01 | Start scanner manually from Linux Mint without requiring GQRX | Application opens both display windows and exits cleanly |
+| R01 | Start scanner manually from Linux Mint without requiring GQRX | Application opens borderless, independently sized **1424×280 top** and **1280×400 bottom** windows and exits cleanly |
 | R02 | Upper 1U window shows frequency, bank, AM/NFM, signal activity, and SCANNING / RECEIVING / HELD / ERROR | Status reflects synthetic state, then live SDR state |
 | R03 | Lower 2U window shows large independent **CB / GMRS / AIR / AMB / FIRE** on/off bank toggles | Toggles persist across restart |
 | R04 | Start, hold/resume, skip active signal, open settings | State-machine transitions are deterministic |
@@ -36,7 +36,9 @@ Create a simple, dedicated, receive-only desktop/rack scanner that boots into a 
 
 ## Non-functional requirements
 
-- Touch-first, legible on low-height displays; no tiny stock-GQRX widgets on the primary screen.
+- Native target dimensions are **1424×280 (1U status)** and **1280×400 (2U controls)**, as confirmed by the user. Layout should be pixel-aware, legible on these unusually wide/short displays, and avoid tiny stock-GQRX widgets.
+- The 1280×400 UI must fit the five bank toggles, a concise current-frequency/signal region, recent hits and primary SCAN/HOLD/SKIP/SETTINGS actions without vertical scrolling on the Home view. Secondary settings may use separate screens.
+- Keep minimum practical touch targets generously sized; verify physical touch mapping and DPI scaling on the installed monitor.
 - Dark industrial theme, restrained green highlights for enabled banks, strong contrast for state.
 - One SDR backend process owns the hardware; no competing simultaneous GQRX access.
 - Graceful startup/shutdown; logging, clear status and easy debugging on Linux Mint.

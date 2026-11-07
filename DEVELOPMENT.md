@@ -1,67 +1,86 @@
-# Development plan
+# SDRbox development plan
 
-_2026-11-07 — planning phase; do not mark any milestone completed without running it on the Dell._
+**Updated 2026-11-07. Planning phase; nothing from the custom scanner/web-server code has been deployed yet.** Do not mark milestones done without tests on rackio.
 
-## Current known-good baseline
+## Decided implementation approach
 
-- Linux Mint boots the rack computer.
-- GQRX receives FM broadcasting.
-- GQRX was seen responding around **118.800 MHz**, demonstrating airband activity/reception.
-- An earlier GQRX frequency-offset issue was corrected by selecting the **Realtek** SDR device, rather than the generic RTL entry.
-- No autonomous scanner or custom two-screen Qt application has been implemented.
+- **Linux Mint on rackio**, known-good **NooElec NESDR Smart** with GQRX for diagnostics.
+- **Python scanner engine + FastAPI web server**, single authoritative receiver/controller.
+- **HTML/CSS/JavaScript** views served from rackio: `/status` upper 1U **1424×280**, `/control` lower 2U **1280×400**, `/` responsive LAN browser UI.
+- Chromium on rackio supplies the two local fullscreen/browser app windows; any home-network browser connects to the same service.
+- WebSocket broadcast of scanner state, REST for commands/snapshots; one server controls one SDR. Browser closure does **not** shut the scanner down.
+- **Decoded audio plays locally through rackio first**. Browser audio streaming is postponed.
+- **Not** PySide6. Modular monolith with separate core, radio, web and storage modules (see [ARCHITECTURE.md](ARCHITECTURE.md)).
+- No docker/microservices/frontend framework required for first version. Add complexity only after measurements.
 
-## Build milestones (incremental)
+## Verified baseline
 
-### M0 — Inventory and reliable GQRX baseline
-- Capture hardware/OS/display/USB/audio details from [HARDWARE.md](HARDWARE.md).
-- Verify 118.800 MHz audio in AM, antenna/cable and gain.
-- Record known sample-rate(s) that stream without dropped samples, tunable gain and frequency correction (PPM if needed).
-- Native resolutions, XRandR outputs and layout are confirmed: **upper 1U 1424×280 on HDMI-1 at +0+0**, **lower 2U 1280×400 on HDMI-2 at +59+280**. Touch mapping was tested successfully (upper disabled, lower accurate). See [TOUCHSCREEN.md](TOUCHSCREEN.md). Check DPI scaling if needed and verify auto-configuration after reboot.
+- GQRX under Linux Mint receives FM broadcast and activity around **118.800 MHz** aviation. It is not yet an automatic scanner.
+- An earlier apparent GQRX frequency shift improved after selecting the **Realtek** RTL device.
+- XRandR: **HDMI-1 = 1424×280 at +0+0**, **HDMI-2 = 1280×400 at +59+280**.
+- Touch test: top touch disabled; lower touch accurate with `map-to-output ... HDMI-2`. USB-path-based script is tested; login autostart and post-reboot persistence still await verification. See [TOUCHSCREEN.md](TOUCHSCREEN.md).
+- SDRplay RSP1A, remote antenna, knob and speaker are future options/approved upgrades, **not installed as part of this software milestone**.
 
-### M1 — Headless airband scanner (first **coding** goal)
-- Start with a known-frequency list of a few Ottawa airband stations that are **verified**, plus manual override.
-- Prove AM decode, signal threshold/squelch, sound output, scan pause, hang and resume.
-- Expose a status line/event log. No GUI needed to verify DSP.
-- Prefer proven SDR libraries/tools. Benchmark retune/settle and channel revisit time.
+## Build milestones
 
-### M2 — FFT chunk-scanning proof of concept
-- Measure actual useful passband at ~2.4 MS/s or a stable supported rate.
-- Generate overlapping windows covering 118–136.975 MHz (expect ~10 as an initial planning estimate).
-- Detect peaks above per-window noise floor; reject DC and persistent spur artifacts.
-- Validate whether peak detection confirms actual AM traffic versus spurious energy.
-- Stay within current IQ window to demodulate if possible; avoid unnecessary hardware retune.
-- Compare against M1 known-channel scanner and report measured false hit/missed traffic rates.
+### M0 — Inventory and local integration baseline
+- Gather actual Dell CPU/RAM/OS version, ALSA/PulseAudio/PipeWire sound output, SDR driver/device and reliable sample rate.
+- Verify airband audio through rackio's local audio output in GQRX, then measure with chosen DSP tools; close GQRX before opening NESDR in another process.
+- Reboot test the touch-autostart script; verify display output IDs, Chromium kiosk/window placement mechanics and audio routing.
+- Avoid treating an unverified `http://rackio.local:8080` URL as a running server.
 
-### M3 — PySide6 dual-screen prototype
-- Display top **1424×280** (1U) status window and middle **1280×400** (2U) Home Scan view per [UI.md](UI.md); verify that five bank toggles, readout, hits and four actions fit at native resolution without vertical scrolling.
-- Implement working AIR bank toggle, SCAN / HOLD / SKIP, current freq and recent hits.
-- Connect real scanner events, not simulated radio readouts.
-- Persist config in YAML or JSON; include basic error handling.
+### M1 — Web shell and simulated scanner events
+- Build minimal FastAPI server with basic health endpoint, authoritative in-memory scanner state, command validation, WebSocket fanout and simulated receiver events.
+- Serve **three pages from one app**: status strip (1424×280), control panel (1280×400), responsive home interface.
+- Test from rackio and another LAN computer: bank toggle and scan state update all clients; reload/reconnect restores state.
+- Label fake hits/signal values as simulation, not actual receptions.
+- No hardware DSP integration required yet; prove screen layout/communications without needing aircraft traffic.
 
-### M4 — Multi-bank scheduler
-- Add CB, GMRS, AMB and FIRE as **editable bank definitions**, with only confirmed and monitorable frequencies enabled.
-- Add priority/fairness, mode per channel/window, on/off while scanning.
-- Measure latency added by each enabled bank and show user-friendly estimates/status.
-- Avoid treating encrypted/digital/trunked systems as analogue FM.
+### M2 — First real airband receiver and local audio
+- Prove AM tune/demodulation/audio from the NESDR with the selected Python/library/receiver toolchain.
+- Create headless scanner with known **verified airband channels**, gain, squelch, pause, hang and resume.
+- Feed state/events from real scanner into API and browser UI; remove simulated values in live mode.
+- Verify local rackio speaker sound works even with browsers closed.
+- Measure retuning, audio latency and revisit time.
 
-### M5 — Appliance polish
-- Autostart after login, kiosk/borderless panels on correct screens, recover on SDR disconnect.
-- Optional recording, favourites/lockouts, spectrum view.
-- Later hardware upgrades and RSP1A adapter.
+### M3 — FFT wide-window airband discovery
+- Measure usable instantaneous bandwidth (nominal 2.4 MS/s, not necessarily 2.4 MHz clean edges).
+- Build overlapping windows across 118.000–136.975 MHz; **~10** is an initial estimate.
+- Detect candidate voice channels above local noise floor, reject spur/DC artifacts, and demodulate AM.
+- Benchmark false positives and missed short transmissions against the known-channel scanner; avoid unnecessary retunes when an active channel fits in current IQ window.
 
-## Workflow agreement
+### M4 — Multi-bank scheduler and activity data
+- Add editable **CB / GMRS / AIR / AMB / FIRE** toggles and bank definitions, per-bank channel lists/windows and modes.
+- Preserve fair scan scheduling while tracking revisit latency with multiple banks enabled.
+- Add recent hits in **SQLite** and settings/channel bank config in YAML or JSON.
+- Do not assume local emergency services are receivable analogue voice; trunked/digital/encrypted services need separate assessment.
 
-- User controls design decisions and field testing.
-- Prefer small commits and tests over one giant speculative implementation.
-- When working via an AI/Codex assistant, inspect the repo and current device state before changing code. Do not overwrite docs based on an outdated handoff.
-- Do not start simultaneous GQRX and scanner processes against one RTL-SDR.
-- Keep a changelog of successful/failed tests with real frequencies, mode, observations and dates.
-- Any local services/autostart are **future options**, not assumed to exist.
+### M5 — Appliance integration and reliability
+- Browser app/kiosk views autostart on correct monitors after login; start scanner web server reliably independently of browser lifecycle.
+- Restore selected banks/settings; report SDR/driver/audio/network faults and reconnect clients cleanly.
+- Confirm one control action from a remote LAN browser changes the same shared scanner state on the rack screens.
+- Consider recording, skip/lockouts, priority handling, advanced waterfall view and boot polish only after baseline works.
+
+### M6 — Later (not a v1 blocker)
+- **Browser audio streaming** (select codec/transport, account for browser autoplay, network latency and multiple clients); leave rackio local audio working.
+- RSP1A adapter, remote antenna, encoder knob, dedicated speaker.
+- Optional access control for less-trusted networks; never expose unauthenticated control endpoint directly to the public Internet.
+
+## Development workflow
+
+- User controls the interface design and field testing; use small tested commits.
+- First inspect current repo/host state instead of relying only on old handoff text.
+- Keep simulated UI testing separate from live RF testing; no invented signal strength or hit logs.
+- Prefer established DSP/RTL-SDR components; don't implement radio algorithms unless needed.
+- A **single process/app with separate modules and a worker thread/process** is preferred over microservices.
+- Check ability to place two Chromium windows correctly before creating desktop autostart units.
+- Browser-facing address/port, service process, firewall binding and session autologin remain deployment choices.
+- Keep **local audio** the success criterion before introducing browser audio.
 
 ## Open decisions
 
-- **Display resolutions, IDs/arrangement and touch mapping are confirmed**; touchscreen login-autostart still needs reboot validation. Receiver type/model details and sample rate require probes.
-- Initial DSP library and scanner mechanism: known-channel baseline vs FFT-first. Recommendation: **M1 then M2**, so FFT complexity does not block a working scanner.
-- Detection thresholds, gain control strategy, bandwidth and hang time (measure rather than prescribe).
-- Which local CB / GMRS / AMB / FIRE channels are legal, active, receivable with analogue AM/NFM.
-- Audio output device, long-running recording/storage policy and whether trunking is ever desired.
+- Actual Dell specification, NESDR sample rates, chosen radio DSP library and rackio audio device.
+- Exact port and server deployment command/service type; proposed `rackio.local:8080` only.
+- Detection threshold/gain/AM bandwidth/hang time and measured scan rate.
+- Verified local frequency banks and long-term recording storage/retention.
+- Exact remote-audio streaming protocol (later).

@@ -1,56 +1,72 @@
-# SDRbox — next AI/developer handoff
+# SDRbox — handoff for the next AI/developer
 
-**Updated 2026-11-07. Read this before coding.**
+**Updated 2026-11-07. Read this first, then README, ARCHITECTURE, WEB_API, UI, DEVELOPMENT, HARDWARE and TOUCHSCREEN.**
 
-## The one-sentence brief
+## One-sentence brief
 
-Build a **Linux Mint / Dell OptiPlex / NooElec NESDR Smart** **scanner appliance** with **1424×280 upper 1U glanceable status** and **1280×400 lower 2U touchscreen control interface**, independent category bank toggles and **airband-first** automatic scan/stop/listen/resume.
+Build a **web-based, local-audio-first radio scanner appliance** on Linux Mint (`rackio.local`): a single Python scanner/SDR backend + **FastAPI web server**, with Chromium on the rack displaying **read-only 1424×280 `/status`** above **touch-controlled 1280×400 `/control`**, while other home browsers access the same shared application at `/`.
 
-## Known decisions
+## Decisions not to reopen without user request
 
-1. **Linux Mint**, **not Xubuntu**. Do not re-propose reinstallation.
-2. **Scanner first**; full SDR spectrum lab, if any, is an advanced mode.
-3. Hardware is working with **GQRX**. 118.800 MHz airband produced reception results; broadcast FM also works.
-4. Main touch UI has **CB / GMRS / AIR / AMB / FIRE** independent on/off toggle tiles. User wants to scan selected **bands/chunks**, not just switch one preset at a time.
-5. **AIR first**, because GMRS is relatively quiet in the user's area.
-6. User wants **FFT-wide-window discovery** where practical, with threshold relative to noise floor, pause on detected activity, AM demodulation, and resume. Technical feasibility and dwell time are still unmeasured.
-7. Nominal NESDR usable span discussion is **~2.4 MHz instantaneous**; expect around **10 overlapping windows** to cover 118–136.975 MHz as a *starting estimate*. 8 is only the mathematical minimum with no guard bands.
-8. Future SDRplay RSP1A, remote antenna, rotary encoder and communications speaker were accepted, but **not required now**.
-9. The **first scanner dashboard mockup** was the favourite; it was regenerated **without the visible external SDR/antenna**. Dark, large green/grey bank tiles, top status strip, recent hits and SCAN/HOLD/SKIP/SETTINGS. See [UI.md](UI.md).
-10. User prefers pragmatic, staged work and testing on the actual hardware before running ahead.
-11. **Confirmed display geometry:** upper **1U = 1424×280 on HDMI-1 at +0+0**, lower **2U = 1280×400 on HDMI-2 at +59+280**. Touch accuracy is now verified: top disabled, bottom mapped correctly to HDMI-2. Use [TOUCHSCREEN.md](TOUCHSCREEN.md) for device paths, working commands and login autostart setup. **Autostart has not yet been reboot-tested.**
+1. **Linux Mint**, not Xubuntu. The Dell OptiPlex runs the radio and serves the UI.
+2. **Web server architecture replaces the earlier PySide6 proposal.** No separate native local app. Use a modular monolith: radio, scanner/controller, web API, static frontend and storage.
+3. **FastAPI + REST/WebSocket** planned; frontend **HTML/CSS/vanilla JavaScript (ES modules)**, modern CSS Grid/Flexbox. No need for React/Vue, Docker or multiple daemons initially.
+4. **Rack audio first**: demodulated voice plays through the local rackio speaker/audio output. **Browser audio streaming comes later**, not a v1 dependency.
+5. All browsers use **one authoritative scanner engine and one NESDR**, not independent tuner sessions; controls update every display. Closing browser windows must not stop scanning.
+6. Start **airband** because GMRS is quiet near user. GQRX has shown reception around **118.800 MHz**; no custom scanner currently exists.
+7. Main UI has independent **CB / GMRS / AIR / AMB / FIRE** enable/disable toggles for scan banks. One bank may contain many frequency chunks or channels, not necessarily one 2.4 MHz window.
+8. Desired scanning method: FFT search over overlapping ~2 MHz useful windows for candidates above local noise floor, auto pause/listen/resume. **Known-channel airband scanner first** as reliable comparison/baseline. 118.000–136.975 MHz is ~19 MHz; ~10 overlapping chunks is an **unmeasured starting estimate** (8 mathematical minimum at ideal 2.4 MHz).
+9. Upper screen is **status only; touch disabled**. Lower screen is touch-enabled. The first dark green/charcoal scanner dashboard mockup, edited to remove antenna/SDR clutter, was approved. See UI.md; SVG in repo is a simplified rendering, not the exact photorealistic PNG.
+10. Future upgrades accepted: **SDRplay RSP1A**, better antenna placement, USB rotary knob, communications speaker. No current dependency.
+11. User likes incremental, testable changes, not lengthy instructions detached from live feedback.
 
-## What is actually implemented?
+## Physical rack and touch (tested)
 
-**Nothing from the custom SDRbox software yet.** The new repository was initially empty. These docs and the SVG UI schematic establish a handoff baseline. GQRX is a working external application, not an SDRbox frontend. Any frequencies, signal levels and entries shown in concept images are fabricated UI illustration, not logged results.
+| Display | Output | Geometry | Input |
+| --- | --- | --- | --- |
+| Upper 1U | HDMI-1 | **1424×280 +0+0** | upper touch disabled |
+| Lower 2U | HDMI-2 | **1280×400 +59+280** | mapped, accurate touch |
 
-## First actions next session
+Both touchscreens identify as identical `wch.cn TouchScreen`; distinguish **USB paths** instead. Physical port 0:7 is upper, 0:6 is lower; working script at `scripts/rackio-touch.sh` and details in TOUCHSCREEN.md. User tested script and said “looks good”; **after-reboot autostart persistence has not yet been confirmed**. Do not confuse this proven touch mapping with *untested* Chromium kiosk geometry/autostart.
 
-1. Inspect repo and read README/HARDWARE/REQUIREMENTS/ARCHITECTURE/UI/DEVELOPMENT.
-2. Get remaining Linux Mint / SDR / audio specs from actual Dell (`lsusb`, `rtl_test -t`, `pactl` or PipeWire equivalents). **Display output mapping, offsets and touchscreen behavior are already confirmed** in TOUCHSCREEN.md; verify after reboot that Mint autostart runs the mapping script. Close GQRX when using `rtl_test`.
-3. Choose an initial **headless AIR test** at 118.800 MHz or other locally verified voice channels. Prove AM audio, squelch and retuning.
-4. Implement and measure **known-channel scanner** (minimum viable), then prototype FFT window discovery; don't claim unmeasured 1-second whole-band scans.
-5. Build GUI only once radio backend produces reliable state changes.
+## Verified vs proposed
 
-## Risks and critical distinctions
+**Verified:** Linux Mint running GQRX; broadcast FM and 118.800 MHz airband reception result; XRandR monitor placement; corrected touchscreen mapping; tested path-based touch configuration script.
 
-- **2.4 MHz IQ capture is not 2.4 MHz of pristine independent coverage** at all rates/gains. Leave overlap.
-- Need to detect **voice**, not any arbitrary strong carrier. False peaks, local noise and tuner center spur need handling.
-- **One NESDR** cannot continuously monitor different windows at once; extra bank toggles increase revisit latency.
-- AIR uses **AM**; GMRS and many analogue land-mobile channels **NFM**, while many emergency services may be digital/trunked/encrypted. Never invent reliable local emergency frequencies from design art.
-- Dell model still unverified. Display geometry and working touch mapping **have been confirmed** (top 1424×280, HDMI-1 with touch disabled; bottom 1280×400, HDMI-2 with correctly mapped touch). **Persistence after reboot not yet proven**.
-- **No SDR transmit** features are planned.
-- The approved photorealistic PNG is not yet a repo binary. The checked-in SVG is a simplified editable visual placeholder; user can upload full PNG.
+**Not yet implemented:** FastAPI server, web pages, WebSockets, scanner engine, local decoded audio pipeline outside GQRX, FFT signal discovery, saved bank settings, remote browser controls, kiosk autostart, browser audio.
 
-## Relevant repo paths
+**Important:** `http://rackio.local:8080` is a **proposed URL**, not verified as running. Any screenshot frequency/recent hits are **illustrative mock data**. A lower-case `rackio.local` host exists; its exact IP/port is not needed for architecture.
 
-- `README.md`: orientation and index
-- `HARDWARE.md`: equipment and actual probe commands
-- `TOUCHSCREEN.md`: verified touchscreen USB-port mapping and autostart instructions
-- `REQUIREMENTS.md`: acceptance criteria
-- `ARCHITECTURE.md`: DSP/scheduler/state-machine proposal
-- `UI.md`: approved UI contract and image status
-- `DEVELOPMENT.md`: milestones M0–M5
-- `assets/scanner-ui-concept.svg`: a repo-hosted dashboard layout reference
+## First steps for the next instance
 
-**Remember:** User may call this the “overpowered SDR rack.” The proper project repo name is **SDRbox**.
+1. Inspect actual current repo; use the docs here, not earlier chat suggestions about Qt.
+2. Validate Linux Mint/RF/audio baseline and touchscreen reboot behavior, with GQRX still available for comparison. Ask user for one manageable test at a time.
+3. Make a **FastAPI skeleton**: `/status`, `/control`, `/`, basic REST status/command endpoints, WebSocket broadcast. Start with **labelled simulated state** and prove upper/lower/remote views stay synchronized.
+4. Bring the NooElec under sole scanner ownership (close GQRX), prove known-channel **AM airband** detection and **local speaker audio** independent of browser connections.
+5. Add FFT-window discovery after baseline, then other toggle banks, persistence, appliance startup and remote browser audio last. See DEVELOPMENT.md for milestone order.
+
+## Important constraints
+
+- One NESDR cannot monitor separated chunks at the same instant; additional banks raise revisit latency.
+- 2.4 MS/s nominal sample rate does **not** guarantee a 2.4 MHz clean usable band; leave window margins/overlap.
+- Don't mistake FFT peaks for spoken voice; reject DC spikes, interference and spurs.
+- AIR voice AM; analogue GMRS narrow FM; fire/ambulance may be trunked/digital/encrypted. Do **not** invent monitorable local emergency-service frequencies.
+- Keep Python SDR/USB/DSP reads off the web server's async loop; one controller must serialize radio commands.
+- Serve clients on the home LAN only to start, **never expose an unauthenticated remote-control server publicly**. Mutating commands and WebSocket origins need suitable validation.
+- Browser audio is **not** part of first local-audio milestone.
+- Remote UI is a controller of shared hardware, **not** a distinct receiver. Ensure reconnecting browser obtains correct status snapshot.
+- No transmission feature is planned.
+
+## Documentation map
+
+- `README.md`: overview.
+- `ARCHITECTURE.md`: modular monolith + RF and web architecture.
+- `WEB_API.md`: planned routes, commands, events, browser concurrency and local-first audio.
+- `UI.md`: approved UI and HTML/CSS 1U/2U/responsive screen specifications.
+- `REQUIREMENTS.md`: acceptance tests.
+- `DEVELOPMENT.md`: revised milestone plan M0–M6.
+- `HARDWARE.md`: known host hardware, unknowns.
+- `TOUCHSCREEN.md` and `scripts/rackio-touch.sh`: tested input mapping, unverified post-reboot autostart.
+- `assets/scanner-ui-concept.svg`: simplified design asset, **not actual implemented UI**.
+
+User may call this the **overpowered SDR rack**; the GitHub project is **SDRbox** (<https://github.com/Arnbargler/SDRbox>).

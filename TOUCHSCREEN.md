@@ -86,3 +86,7 @@ For **current-session** re-enabling, dynamically identify the upper touch/mouse 
 If either touch USB cable changes ports, update the port selectors in the script. If the monitor HDMI layout changes, review the `HDMI-2` target.
 
 No persistent `xorg.conf` changes or `udev` rules were required.
+
+## Web appliance integration (planned)
+
+The SDRbox application will **not** use PySide6. A future **rackio-hosted FastAPI web server** will serve Chromium `/status` on HDMI-1 (read-only) and `/control` on HDMI-2 (touch); remote LAN browsers will use `/`. Keep this tested touchscreen mapping independent of the future Chromium kiosk autostart. **Browser window positioning, kiosk autostart and web server deployment are not yet tested or installed.** See [ARCHITECTURE.md](ARCHITECTURE.md) and [UI.md](UI.md).

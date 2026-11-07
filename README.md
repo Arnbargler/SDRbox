@@ -8,6 +8,14 @@
 
 The user-approved photorealistic concept shows the same layout without the temporary external antenna/dongle. The SVG above is a repo-hosted, simplified, editable representation; the original high-resolution PNG should be added to `assets/` when available (see [UI.md](UI.md)).
 
+## Agreed software approach
+
+**Web-based appliance (decision 2026-11-07):** run one Python scanner engine and **FastAPI server on rackio**. The two local monitors each open a page from that **same** server in Chromium: **`/status`** on the upper non-touch 1U display and **`/control`** on the lower 2U touchscreen. Computers, tablets and phones on the home LAN can open **`/`** for a responsive remote control/status view. CSS/HTML/JavaScript provides the modern interface; all connected pages share one scanner state.
+
+**Audio v1 plays locally through rackio's speakers.** Audio playback in remote browsers is a later phase. The proposed `http://rackio.local:8080` address is **not a running server yet**. LAN-only initially; do not expose control endpoints to the Internet.
+
+**No separate PySide6 GUI is planned.** The scanner runs independently of browser windows, with one owner of the NESDR and a replaceable adapter for future RSP1A.
+
 ## Intended operation
 
 - Switch band **banks** on/off using large touchscreen toggles: **CB**, **GMRS**, **AIR**, **AMB**, **FIRE** (and HAM later).
@@ -25,7 +33,8 @@ The user-approved photorealistic concept shows the same layout without the tempo
 | [HARDWARE.md](HARDWARE.md) | Physical rack, PC, displays, SDR, radio tests, unknowns |
 | [TOUCHSCREEN.md](TOUCHSCREEN.md) | **Verified dual-display touch mapping** and Linux Mint login-autostart instructions |
 | [REQUIREMENTS.md](REQUIREMENTS.md) | Functional requirements and acceptance tests |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Proposed receiving/scanning pipeline, band model, constraints |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | **Agreed web-server architecture**, RF pipeline and module boundaries |
+| [WEB_API.md](WEB_API.md) | Proposed HTTP/WebSocket commands, events, multi-client behaviour and LAN-only safety |
 | [UI.md](UI.md) | Approved design, layout and controls |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Staged build/test workflow and technical investigation |
 

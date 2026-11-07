@@ -17,7 +17,7 @@ The user **approved the first mockup**, then specifically requested the same fir
 | **Upper 1U** | **1424 × 280 px** | **5.09:1** | Permanent, read-only scanning status |
 | **Lower 2U** | **1280 × 400 px** | **3.20:1** | Touch-first home controls, banks, recent hits |
 
-These pixel dimensions are **user-confirmed**. Actual Linux Mint display IDs, placement, scaling, touch device mapping, and whether the touch panel is correctly calibrated still need testing with `xrandr` and input tools. The reference concept art is *not* pixel-accurate; implement to these real window sizes.
+These pixel dimensions are **user-confirmed**. The display mapping is now confirmed: **HDMI-1 top (+0+0), HDMI-2 lower (+59+280)**. Upper touch is disabled and lower touch has been confirmed accurate after `xinput map-to-output ... HDMI-2`; see [TOUCHSCREEN.md](TOUCHSCREEN.md) for stable USB path handling and proposed login autostart (**not yet verified after reboot**). The reference concept art is *not* pixel-accurate; implement to these real window sizes.
 
 ## Physical display split
 
@@ -55,7 +55,7 @@ No system menus or Linux desktop widgets in appliance view.
 
 ## Theme and implementation
 
-Use **PySide6** native two-window design on Linux Mint, sized for **1424×280** (upper) and **1280×400** (middle). Dark charcoal, readable off-white typography, selective vivid green for active toggle/scan state. Build a compact **single-screen Home layout** at 1280×400: a shallow header, one row of five large on/off bank tiles, a current-frequency/signal-and-recent-hits row, and bottom SCAN/HOLD/SKIP/SETTINGS controls. Do not rely on vertical scrolling on the Home screen. Use separate views for advanced settings. The narrow top panel should use large status typography across its ~5.09:1 span. Verify display coordinate placement and touchscreen mapping, not pixel dimensions. Keep status aligned with real scanner events, not fabricated signal strength or random hit entries.
+Use **PySide6** native two-window design on Linux Mint, sized for **1424×280** (upper) and **1280×400** (middle). Dark charcoal, readable off-white typography, selective vivid green for active toggle/scan state. Build a compact **single-screen Home layout** at 1280×400: a shallow header, one row of five large on/off bank tiles, a current-frequency/signal-and-recent-hits row, and bottom SCAN/HOLD/SKIP/SETTINGS controls. Do not rely on vertical scrolling on the Home screen. Use separate views for advanced settings. The narrow top panel should use large status typography across its ~5.09:1 span. Display placement and touch mapping have been tested; keep the app on the verified HDMI outputs and retest mapping after reboots or cabling changes. Keep status aligned with real scanner events, not fabricated signal strength or random hit entries.
 
 ## Mockup asset handling
 

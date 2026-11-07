@@ -16,7 +16,7 @@ _2026-11-07 — planning phase; do not mark any milestone completed without runn
 - Capture hardware/OS/display/USB/audio details from [HARDWARE.md](HARDWARE.md).
 - Verify 118.800 MHz audio in AM, antenna/cable and gain.
 - Record known sample-rate(s) that stream without dropped samples, tunable gain and frequency correction (PPM if needed).
-- Native resolutions already confirmed: **upper 1U 1424×280**, **lower 2U 1280×400**. Document XRandR output names, relative display placement, scale factor, and touchscreen calibration.
+- Native resolutions, XRandR outputs and layout are confirmed: **upper 1U 1424×280 on HDMI-1 at +0+0**, **lower 2U 1280×400 on HDMI-2 at +59+280**. Touch mapping was tested successfully (upper disabled, lower accurate). See [TOUCHSCREEN.md](TOUCHSCREEN.md). Check DPI scaling if needed and verify auto-configuration after reboot.
 
 ### M1 — Headless airband scanner (first **coding** goal)
 - Start with a known-frequency list of a few Ottawa airband stations that are **verified**, plus manual override.
@@ -60,7 +60,7 @@ _2026-11-07 — planning phase; do not mark any milestone completed without runn
 
 ## Open decisions
 
-- **Screen resolutions are confirmed** (1424×280 top, 1280×400 lower); touchscreen mapping, display IDs/arrangement, receiver type/model and sample rate still require probes.
+- **Display resolutions, IDs/arrangement and touch mapping are confirmed**; touchscreen login-autostart still needs reboot validation. Receiver type/model details and sample rate require probes.
 - Initial DSP library and scanner mechanism: known-channel baseline vs FFT-first. Recommendation: **M1 then M2**, so FFT complexity does not block a working scanner.
 - Detection thresholds, gain control strategy, bandwidth and hang time (measure rather than prescribe).
 - Which local CB / GMRS / AMB / FIRE channels are legal, active, receivable with analogue AM/NFM.

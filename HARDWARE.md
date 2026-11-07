@@ -8,8 +8,8 @@ _Last reviewed: 2026-11-07._
 | --- | --- |
 | Operating system | **Linux Mint** — user corrected an earlier mistaken Xubuntu assumption |
 | Computer | **Dell OptiPlex**, installed at the bottom of a small **tec MOJO-style rack**; exact model/CPU/RAM not yet verified |
-| Upper display | Narrow **1U monitor**, used for status in the proposed software |
-| Middle display | Wider **2U monitor**, proposed main touch-first controls; touch functionality and display resolutions should be verified |
+| Upper display | **1U monitor — 1424 × 280 pixels** (user-confirmed native resolution); proposed persistent status strip |
+| Middle display | **2U monitor — 1280 × 400 pixels** (user-confirmed native resolution); proposed touch-first main controls; touch input/mapping still needs verification |
 | SDR | **NooElec NESDR Smart**, older unit (user bought around 2018); RTL-SDR family |
 | Current app | **GQRX**, operational on Linux Mint |
 | Antenna | Temporary telescopic antenna used during proof of concept, to be relocated eventually |
@@ -17,7 +17,7 @@ _Last reviewed: 2026-11-07._
 
 **Verification:** On 2026-11-07 the user reported results receiving the **118.800 MHz** Ottawa aviation frequency in GQRX. Earlier, changing GQRX's input from a generic RTL device to the **Realtek** device corrected an apparent frequency offset. Reception near GMRS/FRS channel 1 with a walkie-talkie was tested in an earlier session; reducing latency improved it significantly. These tests do **not** demonstrate an operational automatic scanner.
 
-**Do not assume:** Exact OptiPlex model, current system RAM, installed Mint release, touch controller, monitor pixel dimensions, USB port topology, NESDR revision, antenna type/connector, or sampled-band performance. Measure on the actual box.
+**Do not assume:** Exact OptiPlex model, current system RAM, installed Mint release, touch controller/coordinate mapping, desktop scaling and actual XRandR output identifiers, USB port topology, NESDR revision, antenna type/connector, or sampled-band performance. Measure on the actual box.
 
 ## Capture a reproducible baseline
 
@@ -39,11 +39,11 @@ Then (after closing GQRX and other SDR clients, which otherwise lock the dongle)
 rtl_test -t
 ```
 
-Record actual capture stability, usable sample rates, gain behavior, center-frequency/DC spur, input device identification, screen geometry and touchscreen mapping.
+Record actual capture stability, usable sample rates, gain behavior, center-frequency/DC spur, input device identification, display placement, desktop scaling and touchscreen coordinate mapping (the pixel resolutions are already known).
 
 ## Layout / I/O
 
-Upper display = **always-visible status**; lower display = **touch controls**. Both are driven by the same Dell and app. The mockup is the agreed design target, not a photo of implemented software.
+Upper display = **1424×280 always-visible status** (aspect ratio ~5.09:1); lower display = **1280×400 touch controls** (aspect ratio 3.20:1). Both are driven by the same Dell and app. The mockup is the agreed design target, not a photo of implemented software.
 
 ## RF constraints
 

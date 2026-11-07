@@ -2,22 +2,85 @@
 
 _Proposed design, not existing code. Date: 2026-11-07._
 
-## Stack
+## Agreed architecture: local web server + LAN clients
+
+**Decision (2026-11-07):** SDRbox is a **web-server-style scanner appliance**, not a PySide6 desktop application. **Linux Mint** stays on `rackio.local`. One Python scanner engine controls the NooElec NESDR and produces **local audio on rackio**. A **FastAPI** web application serves HTML/CSS/JavaScript and provides commands/status to any browser on the home LAN.
 
 ```text
-Linux Mint / Dell OptiPlex
-   ├── upper 1U status window       (PySide6, borderless)
-   ├── middle 2U control window     (PySide6, borderless, touch-first)
-   └── scanner controller / event bus
-          ├── scan scheduler + state machine
-          ├── configuration, bank/window/channel definitions
-          ├── signal detection (FFT / power relative to noise floor)
-          ├── AM and NFM demodulation + audio + squelch
-          ├── recent-hit event log
-          └── SDR adapter (RTL-SDR now, RSP1A later)
+rackio.local — Linux Mint / Dell OptiPlex
+  NooElec NESDR (one owner; GQRX must be closed)
+            │
+  Python radio backend (IQ, tuning, AM/NFM, FFT, squelch)
+            │
+  Scanner state machine + scheduler + event bus
+            ├── Local audio output on rackio (v1)
+            ├── Bank/channel config + hit history (YAML/JSON, SQLite)
+            └── FastAPI server: REST commands + WebSocket state events
+                      │
+             HTTP/WebSocket over home LAN
+               ├── rackio Chromium /status  → 1U 1424×280 (read-only)
+               ├── rackio Chromium /control → 2U 1280×400 (touch)
+               └── any home browser /        → responsive full scanner UI
 ```
 
-Keep Qt UI threads separate from IQ capture/DSP. Never block the UI waiting for a tuning operation, FFT or device read. Initially a single process plus worker thread/process is fine; microservices aren't required.
+**One application/backend, many browser views**: the two local display pages are served by the same web application as remote pages. There is **no separate local application** to maintain and browsers do not own the SDR hardware. Disconnecting a browser must **not** stop scanning. All browser commands go to the authoritative shared scanner controller; state is broadcast to every connected UI. A server restart may stop scanning; eventual appliance startup/recovery policy is separate.
+
+## Component boundaries (proposed, not yet created)
+
+```text
+sdrbox/
+  main.py                 # compose receiver, scanner, audio and FastAPI app
+  core/
+    models.py             # shared scanner / bank / channel / window contracts
+    scanner.py            # scan state machine, errors, lifecycle
+    scheduler.py          # channel and window selection
+    events.py             # state snapshots and events
+  radio/
+    base.py               # hardware adapter protocol/capabilities
+    rtl.py                # NESDR adapter
+    detector.py           # FFT / noise floor / signal candidate detection
+    demod.py              # AM/NFM DSP, or wrapper of proven receiver engine
+    audio.py              # rackio local PCM audio output, squelch/mute
+  web/
+    api.py                # validated commands, health and status endpoints
+    websocket.py          # live state/event fanout, snapshot on connect
+    static/
+      status.html         # upper 1U read-only display
+      control.html        # lower 2U touch control
+      index.html          # responsive LAN browser interface
+      css/                # layout, styles, CSS Grid/Flexbox
+      js/                 # ES modules for controls, state and API client
+  storage/
+    config.py             # bank definitions and persistence
+    history.py            # activity log (SQLite)
+config/
+  banks.yaml              # bank and frequencies (example)
+tests/                    # fake backend, recorded IQ, scanner/UI tests
+assets/                   # reference mockups
+```
+
+This is a **modular monolith**, not microservices. Use a worker thread/process or existing native DSP tooling for continuous IQ/audio so blocking RF reads never stall FastAPI's event loop or web updates. The radio controller must serialize device changes. Keep UI-independent headless operation for debugging.
+
+### Recommended technologies, subject to local validation
+
+- Backend: **Python + FastAPI** (ASGI, Uvicorn for development/serving).
+- Live state: **WebSocket** events; send a complete snapshot on connection/reconnection; REST GET for basic status and POST for commands.
+- Frontend: **plain HTML5, modern CSS and vanilla JavaScript ES modules** first. No frontend bundler/framework unless complexity actually requires one. Serve static assets from rackio.
+- Local UI: two **Chromium kiosk/app-style windows**, one per monitor. Proper window geometry, hiding browser chrome, startup ordering and screen placement must be verified on Linux Mint.
+- Data: human-readable YAML/JSON configuration; **SQLite** for recent hit history.
+- RF: proven RTL-SDR/Linux libraries or existing DSP engines; adapter keeps future SDRplay RSP1A possible.
+- **Audio phase 1:** decoded audio plays through rackio's own speaker/audio output. **Browser audio streaming is future work**, not an initial requirement; design audio output as a separate sink so it can later be duplicated/streamed without restructuring radio logic.
+
+### State, concurrency and security
+
+- The **server is authoritative**. The UI must never invent signal readings or show optimistic changes as confirmed receiver state. Return command acknowledgment/errors, then broadcast actual state.
+- Multiple local/remote clients see the same selected banks, frequency, scan state, volume and recent hits. Handle concurrent commands deterministically (server-side serialized queue/state machine); no one browser owns the session.
+- A client connecting late receives a full snapshot, then deltas/events. A disconnected page reconnects; the radio keeps operating.
+- Provide health/error status when SDR missing/busy, audio failing or radio stopping.
+- Initial access is **home LAN only** (proposed address such as `http://rackio.local:8080` is **illustrative, not deployed**). Do not expose this unauthenticated control interface to the public Internet or forward router ports. Add authentication/access controls before widening network access; validate WebSocket origins and mutating requests as part of implementation.
+- Start with local rackio audio only, then evaluate latency, encoding and browser playback constraints for remote streaming.
+
+See [WEB_API.md](WEB_API.md) for provisional endpoints, events and multi-client rules, and [UI.md](UI.md) for the display-specific browser layout.
 
 ## Two complementary modes of scanning
 

@@ -4,7 +4,7 @@
 
 ## The one-sentence brief
 
-Build a **Linux Mint / Dell OptiPlex / NooElec NESDR Smart** **scanner appliance** with **1U glanceable status** and **2U touchscreen control interface**, independent category bank toggles and **airband-first** automatic scan/stop/listen/resume.
+Build a **Linux Mint / Dell OptiPlex / NooElec NESDR Smart** **scanner appliance** with **1424×280 upper 1U glanceable status** and **1280×400 lower 2U touchscreen control interface**, independent category bank toggles and **airband-first** automatic scan/stop/listen/resume.
 
 ## Known decisions
 
@@ -18,6 +18,7 @@ Build a **Linux Mint / Dell OptiPlex / NooElec NESDR Smart** **scanner appliance
 8. Future SDRplay RSP1A, remote antenna, rotary encoder and communications speaker were accepted, but **not required now**.
 9. The **first scanner dashboard mockup** was the favourite; it was regenerated **without the visible external SDR/antenna**. Dark, large green/grey bank tiles, top status strip, recent hits and SCAN/HOLD/SKIP/SETTINGS. See [UI.md](UI.md).
 10. User prefers pragmatic, staged work and testing on the actual hardware before running ahead.
+11. **Confirmed screen resolutions:** upper **1U = 1424×280**, lower **2U = 1280×400**. Do not ask for or re-measure their native pixel dimensions as an unknown; do verify display mapping, scaling and touch calibration. Target the UI to these very wide, shallow screens.
 
 ## What is actually implemented?
 
@@ -26,7 +27,7 @@ Build a **Linux Mint / Dell OptiPlex / NooElec NESDR Smart** **scanner appliance
 ## First actions next session
 
 1. Inspect repo and read README/HARDWARE/REQUIREMENTS/ARCHITECTURE/UI/DEVELOPMENT.
-2. Get Linux Mint / SDR / display / audio specs from actual Dell (`lsusb`, `rtl_test -t`, `xrandr`, `pactl` or PipeWire equivalents). Close GQRX when using `rtl_test`.
+2. Get Linux Mint / SDR / display **mapping/scaling** / audio specs from actual Dell (`lsusb`, `rtl_test -t`, `xrandr`, `pactl` or PipeWire equivalents). Native display resolutions are already known (**1424×280 top; 1280×400 bottom**); check output IDs and touchscreen mapping. Close GQRX when using `rtl_test`.
 3. Choose an initial **headless AIR test** at 118.800 MHz or other locally verified voice channels. Prove AM audio, squelch and retuning.
 4. Implement and measure **known-channel scanner** (minimum viable), then prototype FFT window discovery; don't claim unmeasured 1-second whole-band scans.
 5. Build GUI only once radio backend produces reliable state changes.
@@ -37,7 +38,7 @@ Build a **Linux Mint / Dell OptiPlex / NooElec NESDR Smart** **scanner appliance
 - Need to detect **voice**, not any arbitrary strong carrier. False peaks, local noise and tuner center spur need handling.
 - **One NESDR** cannot continuously monitor different windows at once; extra bank toggles increase revisit latency.
 - AIR uses **AM**; GMRS and many analogue land-mobile channels **NFM**, while many emergency services may be digital/trunked/encrypted. Never invent reliable local emergency frequencies from design art.
-- No spec certainty yet on Dell model or display resolutions.
+- Dell model still unverified, but **display resolutions have been confirmed**: top 1424×280, bottom 1280×400. Touch mapping is not yet verified.
 - **No SDR transmit** features are planned.
 - The approved photorealistic PNG is not yet a repo binary. The checked-in SVG is a simplified editable visual placeholder; user can upload full PNG.
 

@@ -16,7 +16,7 @@ _2026-11-07 — planning phase; do not mark any milestone completed without runn
 - Capture hardware/OS/display/USB/audio details from [HARDWARE.md](HARDWARE.md).
 - Verify 118.800 MHz audio in AM, antenna/cable and gain.
 - Record known sample-rate(s) that stream without dropped samples, tunable gain and frequency correction (PPM if needed).
-- Document display placement and any touchscreen calibration.
+- Native resolutions already confirmed: **upper 1U 1424×280**, **lower 2U 1280×400**. Document XRandR output names, relative display placement, scale factor, and touchscreen calibration.
 
 ### M1 — Headless airband scanner (first **coding** goal)
 - Start with a known-frequency list of a few Ottawa airband stations that are **verified**, plus manual override.
@@ -33,7 +33,7 @@ _2026-11-07 — planning phase; do not mark any milestone completed without runn
 - Compare against M1 known-channel scanner and report measured false hit/missed traffic rates.
 
 ### M3 — PySide6 dual-screen prototype
-- Display top 1U status window and middle 2U Home Scan view per [UI.md](UI.md).
+- Display top **1424×280** (1U) status window and middle **1280×400** (2U) Home Scan view per [UI.md](UI.md); verify that five bank toggles, readout, hits and four actions fit at native resolution without vertical scrolling.
 - Implement working AIR bank toggle, SCAN / HOLD / SKIP, current freq and recent hits.
 - Connect real scanner events, not simulated radio readouts.
 - Persist config in YAML or JSON; include basic error handling.
@@ -60,7 +60,7 @@ _2026-11-07 — planning phase; do not mark any milestone completed without runn
 
 ## Open decisions
 
-- Actual screen resolutions/touch mapping, receiver type/model and sample rate; select later based on probes.
+- **Screen resolutions are confirmed** (1424×280 top, 1280×400 lower); touchscreen mapping, display IDs/arrangement, receiver type/model and sample rate still require probes.
 - Initial DSP library and scanner mechanism: known-channel baseline vs FFT-first. Recommendation: **M1 then M2**, so FFT complexity does not block a working scanner.
 - Detection thresholds, gain control strategy, bandwidth and hang time (measure rather than prescribe).
 - Which local CB / GMRS / AMB / FIRE channels are legal, active, receivable with analogue AM/NFM.

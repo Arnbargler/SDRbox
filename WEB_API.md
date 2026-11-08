@@ -1,93 +1,49 @@
-# SDRbox HTTP/WebSocket contract (proposed)
+# SDRbox HTTP/WebSocket API (proposed)
 
-**Planning specification, 2026-11-07. Not implemented.** This describes how one scanner engine on rackio serves the local rack displays and remote home browsers. Endpoint paths and payloads are initial design suggestions, not existing network APIs.
+**Updated 2026-11-08. Not implemented.** One local touchscreen and many remote LAN browsers share one scanner backend.
 
-## Networking and deployment
+## Serving pages
 
-- Proposed development URL: **`http://rackio.local:8080`**. Hostname `rackio.local` is known to resolve over the LAN; port `8080` is a proposal, not verified free or running.
-- Python **FastAPI / ASGI** serves HTML/CSS/JS and machine-readable endpoints from the **same origin**, avoiding unnecessary cross-origin complexity.
-- **Local rack**: `/status` upper HDMI-1 (1424×280, no touch); `/control` lower HDMI-2 (1280×400, touch).
-- **LAN remote**: `/` responsive composite control/status view. All browser sessions share the **same** scanner engine, state, bank selection, audio output and event log.
-- Browser page closure is **not** equivalent to shutting down the engine; server lifecycle is independent of the browser lifecycle.
-- Local **rackio speaker audio** is the only planned audio output in v1; streaming to web browsers is later.
+| Path | Use |
+| --- | --- |
+| `GET /` | Responsive scanner **control + status** for home LAN browsers |
+| `GET /control` | Compact **1280×400** local Chromium scanner page; may be alias/layout of `/` |
+| `GET /api/v1/state` | Full authoritative scanner snapshot |
+| `GET /api/v1/banks` | Configured bank definitions and enabled state |
+| `GET /api/v1/hits?limit=30` | Real confirmed activity |
+| `POST /api/v1/commands` | Validated, serialized scan/tune/bank commands |
+| `GET /api/v1/health` | Server, receiver and local audio readiness |
+| `WS /api/v1/events` | Snapshot on connect, then live state/telemetry/hits/errors |
 
-## Proposed routes
+**Retired:** `/status` as a dedicated upper-1U display. That hardware has been removed. A future optional read-only web view is not prohibited, but is **not required** or part of the kiosk startup.
 
-| Method/path | Purpose | Notes |
-| --- | --- | --- |
-| `GET /` | Responsive scanner view for LAN browsers | Controls + status |
-| `GET /status` | Dedicated 1U read-only status HTML | No scanner controls |
-| `GET /control` | Dedicated 2U touch-control HTML | Native 1280×400 layout |
-| `GET /api/v1/state` | Full authoritative status snapshot | Refresh/reconnect |
-| `GET /api/v1/banks` | Configured bank definitions and on/off values | E.g. AIR, CB, GMRS, AMB, FIRE |
-| `GET /api/v1/hits?limit=30` | Recent confirmed activity | SQLite eventually |
-| `POST /api/v1/commands` | One validated scanner command | Serialize in controller |
-| `GET /api/v1/health` | Server/receiver/audio readiness | Include degraded/error states |
-| `WS /api/v1/events` | Live state changes, telemetry, hits and connection health | Snapshot on connect |
+Suggested address: `http://rackio.local:8080`; hostname exists, but **no web server/port has yet been deployed**.
 
-**Possible commands**: `scan_start`, `scan_hold`, `scan_resume`, `scan_skip`, `set_bank_enabled`, `set_local_volume`. Frequency/channel manual tuning and record controls are subsequent additions. Use typed payloads with validation; do not allow arbitrary shell/driver commands or direct USB control from a browser.
+## Shared state
 
-### Example command
+- **One authoritative scanner state** for all connected clients, not one tuner per connection.
+- State includes receiver/device status, scan state (SCANNING/RECEIVING/HELD/ERROR), active bank/frequency/modulation, relative signal strength, enabled banks, audio output status and actual recent hits.
+- WebSocket clients receive complete snapshot on connect/reconnect followed by versioned events.
+- REST commands such as `scan_start`, `scan_hold`, `scan_resume`, `scan_skip`, `set_bank_enabled`, and `set_local_volume` are validated and queued into the scanner engine.
+- ACK means command accepted/rejected; reflect real state only when applied, rather than optimistic fake tuning.
+- When local and remote clients issue commands at once, server serializes them. Clients show disconnected/stale state if needed.
+- SDR backend and local sound **continue regardless of browsers closing**; a backend/server restart is a different lifecycle concern.
 
-```json
-{
-  "command": "set_bank_enabled",
-  "bank": "AIR",
-  "enabled": true,
-  "request_id": "client-generated-id"
-}
-```
-
-A command acknowledgment is **not** evidence that the SDR finished retuning. Acknowledge acceptance/rejection, then publish a new authoritative scanner state after the controller applies it. In case of race/conflicting clients, server order and state version determine the outcome.
-
-### Example state snapshot (illustrative only)
+Example command (illustrative):
 
 ```json
-{
-  "version": 1,
-  "revision": 42,
-  "receiver": { "connected": true, "type": "rtl-sdr" },
-  "scan": {
-    "state": "SCANNING",
-    "bank": "AIR",
-    "frequency_hz": 118800000,
-    "modulation": "AM",
-    "enabled_banks": ["AIR"],
-    "signal": { "active": false, "relative_db": null }
-  },
-  "audio": { "output": "rackio-local", "streaming": false, "muted": false },
-  "recent_hits": [],
-  "error": null
-}
+{"command":"set_bank_enabled","bank":"AIR","enabled":true,"request_id":"example"}
 ```
 
-Values in this snippet are **mock data**, not a report from the real radio; sample revision numbers and RSSI values are not calibration. Prefer nullable/unknown fields instead of invented measurements.
+No raw IQ or continuous audio in the ordinary status WebSocket.
 
-## Event delivery
+## Audio phases
 
-- Send a **full snapshot immediately on connection**, then server-originated `state_changed`, `signal`, `hit`, `error` and `health` events.
-- Each event should carry a monotonically increasing revision or timestamp. Transient high-rate measurements may be coalesced/throttled; do not overwhelm a small touchscreen or client.
-- On reconnect, fetch a full snapshot before applying more events. A client should visibly indicate disconnected/stale state.
-- Never send raw IQ or continuous audio samples over the standard state WebSocket.
-- Restrict read-only `/status` page to presentation controls only; its backend connection is read-only.
-- Multiple browsers are mirrors/controllers of the same receiver; never create one receiver instance per browser.
-- Simulated backend/testing mode should be explicitly flagged in events and UI.
+- **V1:** decoded AM/NFM voice plays on rackio's local audio device. Volume/mute may be shared controls. Audio output independent of Chromium being open.
+- **Later:** separate encoded voice stream/player for remote browsers, including codec, playback permission/autoplay, bandwidth and latency decisions. Do not let browser audio delay initial working scanner.
 
-## Local-first audio
+## Safety / networking
 
-V1 audio path: `RTL-SDR IQ -> AM/NFM decode -> squelch -> rackio sound output`. Volume/mute control should be mediated by the shared scanner controller (not per-client hardware state). Closing any web tab must not cut off local audio. Server audio device failures should be surfaced as status/errors.
+Start on **home LAN only**; no WAN exposure/port forwarding/public reverse proxy. Validate origins/commands; use appropriate cross-site protections for HTTP mutating requests and WebSocket connections. Add authentication/access control before allowing less-trusted network clients. Avoid arbitrary shell/USB commands through the API.
 
-Future browser audio: add a **separate optional stream/endpoint** for encoded demodulated voice and a frontend audio player with browser autoplay/user-gesture handling. The exact codec, format and endpoint are **not decided**. Do not require this capability to complete v1.
-
-## LAN security (requirements before any exposure beyond localhost)
-
-The local rack browser can use localhost while other home devices use `rackio.local`; binding network interfaces, firewall settings and port are deployment-time decisions. **Home LAN only at first**: no port forwarding, public reverse proxy, remote-Internet exposure or unauthenticated cross-network access. Validate command input and WebSocket `Origin`; consider protection for commands against cross-site requests, and add user authentication if the server will be reachable from less-trusted devices/networks.
-
-## Implementation and test checklist
-
-- Start with a fake scanner backend to demonstrate `/status`, `/control`, `/` and synchronized bank toggles without needing the NESDR.
-- From a separate LAN machine, change a bank; both rack browsers must reflect the authoritative state immediately.
-- Unplug/reconnect LAN or reload a client: scan engine must keep running and client must recover a consistent snapshot.
-- Start live RTL-SDR backend only after confirming the existing GQRX process has released the receiver.
-- Verify commands never block FastAPI event loop during IQ reads/retuning and that simultaneous controls are serialized.
-- Confirm local sound operates when all remote browsers are closed.
+Test with a simulated scanner first, clearly labelled as simulated, then connect real NESDR. Use local 1280×400 browser and a remote PC to confirm shared state, reconnect snapshots and audio continuing when browsers close.

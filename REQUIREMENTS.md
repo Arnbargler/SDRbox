@@ -1,72 +1,55 @@
-# SDRbox requirements — scanner first
+# SDRbox requirements — single display and web-server scanner
 
-_Status: proposed behaviour, not yet built. 2026-11-07._
+**Updated 2026-11-08. Specification only, not implemented.**
 
-## Purpose
+## Goal
 
-Create a dedicated, receive-only scanner appliance on **Linux Mint**. One Python scanner backend and **FastAPI web server on rackio** serve two local Chromium display pages and a responsive LAN browser interface. **Local rackio audio is required first; browser audio is deferred.**
+Provide a **scanner appliance first**, driven by a NooElec NESDR Smart on **Linux Mint / rackio**, with **one 1280×400 local touchscreen** and a responsive LAN web interface. The removed 1U status monitor is **not part of the project**.
 
-## Functional v1
+## Functional acceptance criteria
 
-| ID | Requirement | Initial acceptance test |
+| ID | Requirement | Acceptance |
 | --- | --- | --- |
-| R01 | Start the FastAPI server and scanner on Linux Mint without requiring GQRX | `/status`, `/control`, `/` and an API health endpoint load; backend stops cleanly |
-| R02 | Chromium `/status` on **1424×280 HDMI-1** shows frequency, bank, AM/NFM, signal and SCANNING / RECEIVING / HELD / ERROR | Read-only status updates from server, without upper touch input |
-| R03 | Chromium `/control` on **1280×400 HDMI-2** shows independent **CB / GMRS / AIR / AMB / FIRE** on/off bank toggles | Touch is accurate, all controls fit without Home-view vertical scrolling; toggles persist |
-| R04 | Start, hold/resume, skip active signal, open settings | State-machine transitions are deterministic |
-| R05 | **AIR** initially enables a configurable 118.000–136.975 MHz plan | Correct window list produced with overlap |
-| R06 | Scan fixed known airband channels **and/or** FFT-detect candidates across windows | Live AM traffic pauses scanner and produces intelligible audio |
-| R07 | Estimate a local noise floor, use tunable detection threshold and hysteresis | Can tune detection without repeated false pauses |
-| R08 | Automatic dwell, signal confirmation, squelch close and resume delay | Does not chatter between states at noise boundary |
-| R09 | Each bank and channel/window can define demodulation mode | AM aviation and NFM GMRS tests both feasible |
-| R10 | Current frequency and recent-hit list with timestamp and duration | Logs genuine detections; not every FFT artifact |
-| R11 | Config/state survive restart | Bank selection and settings restore correctly |
-| R12 | SDR disconnect, busy device, audio failure and no banks enabled handled visibly | Clear error and recovery paths |
-| R13 | Serve responsive control/status UI at `/` over the **home LAN** | PC/tablet browser accesses rackio and controls the same shared scanner, no duplicate tuner instances |
-| R14 | Broadcast real-time status from server to all clients via WebSocket | Local status/control and remote browser stay synchronized and reconnect with fresh snapshots |
-| R15 | Decode and play **local audio through rackio** as first priority | Airband AM heard from rackio sound output, independent of browser connections |
-| R16 | Keep radio scanning when a browser disconnects | Closing/reloading one/all pages does not stop a healthy scanner process |
-| R17 | Server validates and serializes control commands from simultaneous clients | No conflicting hardware writes or fake acknowledged state; errors reported |
-| R18 | Keep server **LAN-only**, not publicly Internet-accessible | No port forwarding; validate input, WebSocket origins and mutating request origin/access policy |
+| R01 | Python **FastAPI** server starts on rackio, independent of browser windows | Health/status API and local/remote web pages accessible |
+| R02 | **One Chromium fullscreen kiosk/app window** fits the **1280×400** panel | All primary controls/info visible; no Home screen vertical scroll |
+| R03 | One screen contains status, current tune/mode, signal, recent hits and large buttons | No dependency on a separate `/status` display |
+| R04 | Independent CB/GMRS/AIR/AMB/FIRE bank toggles | Several can be on simultaneously; survive restart |
+| R05 | SCAN/HOLD/SKIP/SETTINGS operate reliably | Distinguish manual HOLD from automatic pause |
+| R06 | Prioritize AIR 118.000–136.975 MHz | Known channels and measured window plan available |
+| R07 | AIR AM receiver automatically stops for plausible activity | Intelligible AM audio heard through **rackio's local sound output** |
+| R08 | Detection has threshold/hysteresis, confirmation, squelch and hang time | Avoid repeated false pauses/chatter; resume after silence |
+| R09 | Scan can use known channels, with FFT chunk discovery later | Performance measured, not guessed |
+| R10 | AM/NFM configuration per channel/window | Known airband and simple NFM tests succeed |
+| R11 | Real recent-hit log with time, frequency/bank, duration | No simulated hit entries displayed as real |
+| R12 | Browser controls work from other devices on home LAN | One shared scanner state; rack view updates when remote toggles |
+| R13 | Status propagates via WebSocket + snapshot/reconnect | Clients recover consistently after reload/disconnect |
+| R14 | Browser close/disconnect does **not** stop scan/audio | Scanner runs until controller/server intentionally stops |
+| R15 | Graceful receiver-busy/missing/audio errors | Local and remote browsers show meaningful state |
+| R16 | Single receiver hardware ownership, validated serialized commands | No race between remote and local browser controls |
+| R17 | Single-screen touch accurate after upper display removal | Verify four corners and current XRandR output |
+| R18 | LAN-only by default | No public port forwarding; validate mutating requests/origins |
 
-**Top priority:** Demonstrate scanner engine on **airband only** before polishing all five band definitions.
+## UX requirements
 
-## v1 scanning semantics
+- Target native **1280×400**. One compact scanner page should accommodate title/status, **five wide toggle tiles**, frequency+meter, recent hits, and SCAN/HOLD/SKIP/SETTINGS buttons without scrolling.
+- Use the **approved photorealistic option #2** (see [UI.md](UI.md)) for styling: dark premium industrial, bright green active states, high-contrast readable text.
+- Implement in **HTML/CSS/JavaScript**, served by FastAPI. No PySide6 or second local monitor.
+- Remote `/` page adapts to desktop/tablet/mobile while remaining one shared application.
+- Confirm actual browser viewport and touch mapping on the live rack before setting fixed font/target sizes.
 
-- Each large top-level toggle enables/disables a **bank** (category), not necessarily exactly 2.4 MHz.
-- A bank references one or more smaller **windows** of sampled spectrum, or a list of channels. Banks may overlap; deduplicate repeated windows/channels in scheduling.
-- Scanning rotates through enabled windows, evaluates candidate signal peaks, and listens to an active candidate. When idle/silent after hang time, it resumes the rotation.
-- **HOLD** intentionally remains at current channel and disables automatic resumption; a temporary squelch-triggered **PAUSE** is different.
-- **SKIP** moves past the current hit; optionally remember a temporary lockout. Permanent blacklist is a separate deliberate action.
-- Never auto-enable unavailable categories silently; user can select multiple banks and see an estimated revisit latency.
+## Hardware / radio requirements
 
-## Non-functional requirements
+- One **NESDR** is the receiver for v1; adapter contract permits **future RSP1A**.
+- Nominal ~2.4MS/s span must be measured; overlap FFT windows. One hardware tuner cannot listen to separated bands simultaneously.
+- AIR initial scope is analogue AM voice. GMRS NFM and CB/AMB/FIRE banks come after proven airband scanning.
+- No claims that local FIRE/AMB agencies are analogue or monitorable without research and testing.
+- Local audio must work without a browser connection. Browser audio streaming is **phase 2**, not v1.
+- Persist user-selected bank switches and scanner settings (YAML/JSON), with SQLite for hit history when needed.
 
-- Native target dimensions are **1424×280 (1U status)** and **1280×400 (2U controls)**, as confirmed by the user. Layout should be pixel-aware, legible on these unusually wide/short displays, and avoid tiny stock-GQRX widgets.
-- The 1280×400 UI must fit the five bank toggles, a concise current-frequency/signal region, recent hits and primary SCAN/HOLD/SKIP/SETTINGS actions without vertical scrolling on the Home view. Secondary settings may use separate screens.
-- Keep minimum practical touch targets generously sized; verify physical touch mapping and DPI scaling on the installed monitor.
-- Dark industrial theme, restrained green highlights for enabled banks, strong contrast for state.
-- One SDR backend controller owns the hardware; no competing simultaneous GQRX access. Many browser clients share the same radio state and cannot tune separate channels simultaneously.
-- FastAPI serves **HTML/CSS/vanilla ES-module JavaScript** from the same origin; avoid a separate local native GUI or unnecessary frontend build tooling in v1.
-- Network/browser status must remain responsive despite continuous DSP/USB I/O. Audio runs locally; remote control updates via REST/WebSocket, not browser-side SDR access.
-- Browser reconnects receive a full state snapshot and show stale/disconnected state clearly.
-- Initial appliance pages load on rackio itself; `http://rackio.local:8080` is a proposed URL, **not yet an installed service**.
-- Graceful startup/shutdown; logging, clear status and easy debugging on Linux Mint.
-- CPU/resource load should be **measured on the Dell**, not guessed.
-- All assumptions about regional frequencies should be verified before shipping predefined banks.
-- Config is human-readable and versioned; avoid hard-coded regional frequency lists in the UI.
+## Deferred features
 
-## Later (out of v1 unless deliberately promoted)
+Browser audio streaming, automatic recordings/replay, favourites/lockouts, advanced FFT waterfall, physical knob, dedicated speaker, improved antenna placement, digital/trunked decoding, RSP1A migration, and polished boot-to-appliance. Encrypted traffic is not a target. No transmission functionality.
 
-- Airband/other bank priority weighting; optional multi-channel demodulation inside one IQ window.
-- Smart channel identification, favourites, discovery mode, temporary/permanent lockouts.
-- Activity statistics, audio capture/recording, automatic recordings, replay.
-- FFT spectrum/waterfall **Advanced** browser page.
-- **Browser audio streaming** (codec, latency, UI and streaming endpoints to decide after local audio works).
-- Fast boot-to-appliance, hiding Mint desktop.
-- Extra hardware: rotary encoder, speaker, remote antennas, SDRplay RSP1A.
-- Digital/trunked reception only as a separate feasibility exercise; **encrypted calls are not a target**.
+## Test philosophy
 
-## Test approach
-
-Start with known busy aviation communications and a known GQRX baseline. Validate tuning accuracy, AM clarity, false-positive rate, resume logic and revisit time. Record actual measurements (dwell, retune overhead, missed short transmissions), not claims based on optimistic estimates.
+Validate both simulated frontend behaviours and real RF behaviour separately. Avoid fabricated scan times, dBm, hit entries or local service frequencies; document measurements on the actual Dell.

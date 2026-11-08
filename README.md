@@ -1,53 +1,50 @@
 # SDRbox
 
-**SDRbox** is a compact, Linux-based **radio scanner appliance first**, with SDR exploration as a secondary/advanced mode. The project uses a Dell OptiPlex in a small rack with a narrow **1U status display** above a larger **2U control display**. The displays are **1424×280 px (upper 1U)** and **1280×400 px (lower 2U)**. It currently runs **Linux Mint** and receives with a **NooElec NESDR Smart (RTL-SDR)**. An **SDRplay RSP1A** may replace the dongle later; v1 must not depend on that upgrade.
+SDRbox is a **receive-only, scanner-first radio appliance** built around a Dell OptiPlex running **Linux Mint** and a **NooElec NESDR Smart (RTL-SDR)**.
 
-> **Status — 2026-11-07:** Hardware and GQRX reception proven; **no custom scanner software exists yet**. A live signal was observed around **118.800 MHz** in the aviation band. The screenshots below are **design concepts**, not screenshots of functioning SDRbox software.
+**2026-11-08 hardware decision:** the upper 1U display has been **removed**. There is now **one local 2U touchscreen, 1280×400 pixels**, for both information and controls. The web-server architecture remains unchanged.
 
-![Approved scanner appliance UI concept](assets/scanner-ui-concept.svg)
+> **Status:** GQRX has received FM broadcast and activity around 118.800 MHz. No custom SDRbox scanner, FastAPI server, Chromium kiosk, or live web UI has yet been implemented. Mockup values are fictional demonstration data.
 
-The user-approved photorealistic concept shows the same layout without the temporary external antenna/dongle. The SVG above is a repo-hosted, simplified, editable representation; the original high-resolution PNG should be added to `assets/` when available (see [UI.md](UI.md)).
+## Selected design: photo option #2
 
-## Agreed software approach
+The user approved the **second single-display mockup** from the three 2026-11-08 options, with polished dark industrial styling, five green/grey bank switches, frequency/meter, recent hits and large SCAN/HOLD/SKIP/SETTINGS controls.
 
-**Web-based appliance (decision 2026-11-07):** run one Python scanner engine and **FastAPI server on rackio**. The two local monitors each open a page from that **same** server in Chromium: **`/status`** on the upper non-touch 1U display and **`/control`** on the lower 2U touchscreen. Computers, tablets and phones on the home LAN can open **`/`** for a responsive remote control/status view. CSS/HTML/JavaScript provides the modern interface; all connected pages share one scanner state.
+![Approved SDRbox option 2 preview](assets/scanner-mockup-option-2.webp)
 
-**Audio v1 plays locally through rackio's speakers.** Audio playback in remote browsers is a later phase. The proposed `http://rackio.local:8080` address is **not a running server yet**. LAN-only initially; do not expose control endpoints to the Internet.
-
-**No separate PySide6 GUI is planned.** The scanner runs independently of browser windows, with one owner of the NESDR and a replaceable adapter for future RSP1A.
+The photo is a design reference, **not a screenshot of running SDRbox software**. See [UI.md](UI.md).
 
 ## Intended operation
 
-- Switch band **banks** on/off using large touchscreen toggles: **CB**, **GMRS**, **AIR**, **AMB**, **FIRE** (and HAM later).
-- A bank contains configured frequency **windows/chunks** or known channels. Selecting more than one bank includes their windows in the scan rotation. **Banks are not necessarily one contiguous RF span.**
-- Scan approximately **2 MHz usable portions** of spectrum per RTL-SDR retune, detect likely activity using FFT energy relative to the noise floor, stop and demodulate the candidate (AM/NFM as configured), then resume after silence.
-- Keep the upper 1U display on persistent high-contrast **frequency / mode / signal / scanning-or-hold state**.
-- Keep the middle 2U screen touch-first: bank toggles, current tune, signal meter, recent hits, and **SCAN / HOLD / SKIP / SETTINGS**.
-- Prioritize real reception and stable scanner behaviour over an elaborate spectrum laboratory UI.
+- **Rackio** runs one Python scanner backend plus a **FastAPI** HTTP/WebSocket server.
+- **One local Chromium browser** occupies the 1280×400 touchscreen, using `/control` or `/`.
+- Other computers/phones/tablets on the **home LAN** use the same server through a responsive `/` page; every browser shares one scanner state and tuner.
+- **Local speaker audio on rackio first**. Optional audio through remote browsers **later**.
+- Independently enable scanning **CB, GMRS, AIR, AMB, FIRE** banks. Each bank contains known channels and/or RF windows, not necessarily one contiguous frequency span.
+- **Airband first** (118.000–136.975 MHz). Validate conventional known-channel AM scanning, then FFT-based discovery across overlapping windows.
+- Proposed server address `http://rackio.local:8080` is **not yet running**. LAN-only initially; no public Internet exposure.
 
-## Documentation map
+## Project documents
 
-| File | Read it for |
+| Document | Purpose |
 | --- | --- |
-| [HANDOFF.md](HANDOFF.md) | **Start here next session** — verified status, decisions, immediate next steps |
-| [HARDWARE.md](HARDWARE.md) | Physical rack, PC, displays, SDR, radio tests, unknowns |
-| [TOUCHSCREEN.md](TOUCHSCREEN.md) | **Verified dual-display touch mapping** and Linux Mint login-autostart instructions |
-| [REQUIREMENTS.md](REQUIREMENTS.md) | Functional requirements and acceptance tests |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | **Agreed web-server architecture**, RF pipeline and module boundaries |
-| [WEB_API.md](WEB_API.md) | Proposed HTTP/WebSocket commands, events, multi-client behaviour and LAN-only safety |
-| [UI.md](UI.md) | Approved design, layout and controls |
-| [DEVELOPMENT.md](DEVELOPMENT.md) | Staged build/test workflow and technical investigation |
+| [HANDOFF.md](HANDOFF.md) | **Start here** for next AI/developer |
+| [HARDWARE.md](HARDWARE.md) | Known hardware and checks |
+| [TOUCHSCREEN.md](TOUCHSCREEN.md) | Single-screen touch setup and retired dual-screen config |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Modular Python scanner and web server |
+| [WEB_API.md](WEB_API.md) | Proposed REST/WebSocket commands and shared state |
+| [UI.md](UI.md) | Approved **option #2** and 1280×400 single-screen layout |
+| [REQUIREMENTS.md](REQUIREMENTS.md) | Acceptance tests |
+| [DEVELOPMENT.md](DEVELOPMENT.md) | Incremental milestones |
 
 ## Principles
 
-1. Scanner appliance, not generic desktop SDR UI.
-2. Keep existing Linux Mint and GQRX usable as a known-good diagnostic baseline.
-3. Do **not** confuse concept art, expected frequencies, or estimated performance with field-verified results.
-4. Use established SDR/DSP libraries instead of reinventing AM demodulation and device drivers.
-5. Keep NESDR and future RSP1A behind a replaceable hardware interface.
-6. Work in **small, testable increments**; verify one milestone before piling on more.
-7. Receive only; no transmission functionality planned.
-
-## Repository
+1. Scanner appliance first, advanced SDR laboratory second.
+2. **One physical touchscreen**, not two. No separate status-monitor browser.
+3. **One receiver/controller**, regardless of connected browsers; browser closing must not stop scanning.
+4. Keep GQRX as diagnostic baseline (but never compete for the NESDR simultaneously).
+5. Reuse established SDR/DSP libraries and keep a future RSP1A adapter possible.
+6. Do not confuse illustrations or performance estimates with measured results.
+7. Short, testable milestones; user guides UI decisions and field tests.
 
 <https://github.com/Arnbargler/SDRbox>

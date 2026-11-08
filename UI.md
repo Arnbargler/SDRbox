@@ -8,7 +8,7 @@
 
 **The second mockup** is the premium, dark/glossy **one-screen tec MOJO rack** with a Dell OptiPlex below. Original generated image: `neon_green_sdr_scanner_rack_unit.png` (1448×1086 illustration). The repo includes a compressed preview of the actual image. It is **not** a running application screenshot; displayed signal values, dates, service frequencies and recent hits are illustrative.
 
-The old `assets/scanner-ui-concept.svg` depicts the **retired two-screen concept** and is historical, not current design guidance.
+The old two-screen SVG has been **removed from the current branch**; it survives only in Git history and is not current design guidance.
 
 ## Physical display
 

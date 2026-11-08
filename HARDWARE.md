@@ -1,62 +1,80 @@
-# Hardware and verified environment
+# SDRbox hardware and verified environment
 
-_Last reviewed: 2026-11-07._
+**Updated 2026-11-08.** Separate what the user has confirmed from what still needs testing.
 
-## Current installation (observed or explicitly supplied)
+## Current installation
 
 | Item | Current state |
 | --- | --- |
-| Operating system | **Linux Mint** — user corrected an earlier mistaken Xubuntu assumption |
-| Computer | **Dell OptiPlex**, installed at the bottom of a small **tec MOJO-style rack**; exact model/CPU/RAM not yet verified |
-| Upper display | **1U monitor — 1424 × 280 pixels** (user-confirmed native resolution); proposed persistent status strip |
-| Middle display | **2U monitor — 1280 × 400 pixels** (user-confirmed native resolution); touch works accurately after mapping to HDMI-2; see [TOUCHSCREEN.md](TOUCHSCREEN.md) |
-| SDR | **NooElec NESDR Smart**, older unit (user bought around 2018); RTL-SDR family |
-| Current app | **GQRX**, operational on Linux Mint; **no custom FastAPI server/scanner/kiosk yet** |
-| Antenna | Temporary telescopic antenna used during proof of concept, to be relocated eventually |
-| Future hardware | SDRplay **RSP1A** for a later revision; external antenna/coax, physical rotary knob, dedicated speaker |
+| Host | **rackio.local**, Dell OptiPlex in tec MOJO rack; exact model/CPU/RAM to verify |
+| OS | **Linux Mint**, not Xubuntu |
+| **Only local display** | **2U touchscreen, 1280×400 pixels** |
+| Former upper display | **1U 1424×280 monitor physically removed** on 2026-11-08 |
+| SDR | **NooElec NESDR Smart**, older RTL-SDR-family USB device |
+| Existing test application | **GQRX**, operational |
+| Future app | Python scanner + FastAPI server + **one local Chromium window**, not implemented |
+| Audio plan | Decoded audio **through rackio's local sound output first**; browser streaming later |
+| Antenna | Temporary telescoping test antenna; remote antenna planned |
+| Future hardware | SDRplay RSP1A, physical knob, external speaker — not v1 blockers |
 
-**Verification:** On 2026-11-07 the user reported results receiving the **118.800 MHz** Ottawa aviation frequency in GQRX. Earlier, changing GQRX's input from a generic RTL device to the **Realtek** device corrected an apparent frequency offset. Reception near GMRS/FRS channel 1 with a walkie-talkie was tested in an earlier session; reducing latency improved it significantly. These tests do **not** demonstrate an operational automatic scanner.
+## RF verification
 
-**Unverified details:** Exact OptiPlex model, RAM, Linux Mint release, DPI scaling, NESDR revision, antenna/connector, audio output routing and measured sample bandwidth. **Verified:** both display output identifiers/positions and corrected touch USB-port mapping (see [TOUCHSCREEN.md](TOUCHSCREEN.md)); verify touch-script persistence after reboot. Measure remaining items on the actual box.
+- GQRX received broadcast FM.
+- User reported positive airband reception activity at **118.800 MHz**.
+- Selecting the Realtek input rather than generic RTL source helped correct apparent tuning offset.
+- Earlier GMRS/FRS channel 1 walkie-talkie audio test succeeded after reducing latency.
+- **No** headless scanner, airband scan algorithm, custom audio backend or FFT chunk discovery is implemented yet.
 
-## Capture a reproducible baseline
+## Single-monitor setup: needs post-removal check
 
-Run these read-only probes on the Dell and document outputs before implementation:
+Old dual-monitor XRandR mapping (historical only):
+
+```text
+HDMI-1 1424x280 +0+0     # upper monitor, NOW REMOVED
+HDMI-2 1280x400 +59+280  # lower monitor, physically remains
+```
+
+**Do not assume** the remaining monitor still has the same name or position after removing the upper panel. Run:
+
+```bash
+DISPLAY=:0 xrandr --listmonitors
+DISPLAY=:0 xinput list
+```
+
+Then test touchscreen accuracy at all four corners. User was **given** removal/reboot commands for the old touch script, but has **not yet confirmed** completing them. See [TOUCHSCREEN.md](TOUCHSCREEN.md).
+
+The **only local browser screen** should show the scanner's control/information dashboard at 1280×400. LAN browsers use the same backend.
+
+## Baseline inventory commands
 
 ```bash
 cat /etc/os-release
-uname -a
+hostnamectl
 lscpu | head -30
 free -h
 lsusb
-xrandr --query
+DISPLAY=:0 xrandr --listmonitors
 which gqrx rtl_test rtl_fm rtl_power
+pactl info
 ```
 
-Then (after closing GQRX and other SDR clients, which otherwise lock the dongle):
+Close GQRX and any other receiver client before:
 
 ```bash
 rtl_test -t
 ```
 
-Record actual capture stability, usable sample rates, gain behavior, center-frequency/DC spur, input device identification, audio output, scaling, and Chromium kiosk window placement. **Display positions and touch mapping have already been tested**, but restart behavior still needs verification.
+Capture actual CPU/RAM, audio device, SDR version/stable sample rates, tuner gains, display origin and touch calibration before writing permanent startup configuration.
 
-## Layout / I/O
+## RF limitations
 
-Upper display = **1424×280 always-visible status** (aspect ratio ~5.09:1, HDMI-1, touch disabled); lower display = **1280×400 touch controls** (aspect ratio 3.20:1, HDMI-2, touch mapped correctly). Both are driven by the same Dell; **two local Chromium windows are planned**, displaying pages from the **same FastAPI web server on rackio** (upper `/status`, lower `/control`). Other LAN browsers access the same server at `/`. **These web services and kiosk windows are not implemented yet.** **Touch mapping has been verified interactively** using USB paths; **reboot/autostart persistence has not yet been confirmed**. See [TOUCHSCREEN.md](TOUCHSCREEN.md). The mockup is the agreed design target, not a photo of implemented software.
+- RTL-SDR nominal 2.4 MS/s gives about 2.4 MHz IQ span; actual usable clean window narrower. Overlap windows and benchmark.
+- AIR VHF voice 118.000–136.975 MHz: ~10 overlapping ~2MHz windows is a **planning estimate**, not a measured scan speed; initial known-channel AM scan is easier.
+- One NESDR cannot continuously monitor widely separated bands simultaneously. Enabled banks share tuner time.
+- A short VHF whip may perform poorly on CB frequencies (~27MHz).
+- FIRE/AMB may be digital, trunked and/or encrypted locally; do not assume all channels can be demodulated with AM/NFM.
+- RSP1A backend is a **future driver adapter** and not required to start.
 
-## RF constraints
+## Approved eventual physical improvements
 
-- RTL-SDR nominal complex sample rate often discussed as **2.4 MS/s (~2.4 MHz span)**; actual clean/useful passband can be smaller. Verify on hardware, avoid edges and leave overlap.
-- A single receiver cannot listen to disjoint bands at once. Alternating CB, AIR, FIRE, etc. means retuning; the selected bank combination affects revisit time.
-- CB (~27 MHz) may be supported by the dongle but **antenna suitability and reception sensitivity** must be tested. An antenna that receives airband will not automatically perform well at CB, GMRS and fire/EMS bands.
-- Many modern police/fire/EMS services use trunking, digital voice and/or encryption. v1 targets **clear analogue AM / narrow FM only**, and should never imply all agencies are receivable.
-- RSP1A's different API, sample rates and tuning ranges are a **future adapter**, not justification to delay the RTL-SDR prototype.
-
-## Planned physical upgrades (not installed yet)
-
-1. Move the antenna away from the screens; use a suitable remote antenna/feedline.
-2. Add a USB rotary encoder for volume/tuning.
-3. Add a dedicated communications speaker.
-
-All three upgrades are approved in principle, **not** v1 blockers.
+Remote antenna/feedline, rotary encoder/volume knob and communications speaker. These are planned for later and do not need to precede the proof of concept.

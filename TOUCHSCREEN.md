@@ -1,92 +1,57 @@
-# Rackio dual-screen touchscreen configuration
+# Rackio touchscreen — single 1280×400 panel
 
-**Status: working interactively on 2026-11-07; autostart/reboot persistence not yet confirmed.**
+**Updated 2026-11-08. The upper 1U monitor is gone.**
 
-SDRbox runs on Linux Mint on `rackio.local`. The user wanted the **upper 1U display to be informational only** and the **lower 2U display to provide accurate touch control**. A manually tested XInput configuration now achieves exactly that.
+## Current goal
 
-## Confirmed monitor layout
+Maintain **one accurately working local touchscreen**: the **2U 1280×400** panel. No separate status display, no two-monitor coordinate offset and no need to disable the upper touchscreen.
 
-| Physical monitor | XRandR output | Resolution | Position in combined desktop | Intended behavior |
-| --- | --- | --- | --- | --- |
-| Upper 1U | `HDMI-1` | **1424×280** | `+0+0` | **No touch input** |
-| Lower 2U | `HDMI-2` | **1280×400** | `+59+280` | **Touch enabled and accurate** |
-
-Output IDs and positions were verified with `DISPLAY=:0 xrandr --listmonitors`. The offset of the lower display means touch coordinates must map to **HDMI-2** rather than the full desktop.
-
-## Touch devices (as observed before reboot)
-
-All devices report **`wch.cn TouchScreen`** and USB vendor/product **`27C0:0859`** (decimal `10176:2137`). Both physical screens report the *same* `ID_SERIAL=wch.cn_TouchScreen_9LQ0172005164`; therefore **serial number is NOT unique** and device names/IDs are not suitable for permanent mapping.
-
-| Physical panel | XInput ID at test time | Input event node | udev `ID_PATH` | Type |
-| --- | --- | --- | --- | --- |
-| Upper 1U | 9 | `/dev/input/event5` | `pci-0000:00:14.0-usb-0:7:1.0` | Touchscreen |
-| Upper 1U | 10 | `/dev/input/event6` | `pci-0000:00:14.0-usb-0:7:1.2` | Mouse emulation |
-| Lower 2U | 22 | `/dev/input/event19` | `pci-0000:00:14.0-usb-0:6:1.0` | Touchscreen |
-| Lower 2U | 21 | `/dev/input/event20` | `pci-0000:00:14.0-usb-0:6:1.2` | Mouse emulation |
-
-**Crucial:** XInput IDs and `eventN` names can change after reboot. The tested script uses **physical USB paths**; these are stable as long as the same cables stay on the same ports. Mapping by serial would inadvertently match *both* screens.
-
-## Verified test
-
-The user manually applied:
+The user was previously instructed to remove the dual-screen startup config and reboot:
 
 ```bash
-DISPLAY=:0 xinput disable 9
-DISPLAY=:0 xinput map-to-output 22 HDMI-2
+rm -f ~/.config/autostart/rackio-touch.desktop
+rm -f ~/.local/bin/rackio-touch.sh
+sudo reboot
 ```
 
-They confirmed the lower touchscreen was accurate at all corners and the upper screen no longer responded to touches.
+**Not yet confirmed:** whether the above was executed, whether a clean reboot happened, and whether the lower screen is accurate when used alone. Do not state that touch is proven after the hardware change.
 
-Next, the user created/tested the more durable `~/.local/bin/rackio-touch.sh` script, which identifies device IDs from `udevadm ID_PATH`, disables **both upper interfaces** (`1.0` and `1.2`), and enables/maps the **lower touch interface** (`1.0`) to `HDMI-2`. The user reported this test **“looks good.”**
+## Verify the current single monitor
 
-The tested script is backed up in this repository at [scripts/rackio-touch.sh](scripts/rackio-touch.sh). It **does not** disable the lower mouse-emulation interface (USB `0:6:1.2`).
-
-## Enable at Linux Mint desktop login
-
-The following autostart entry was **provided to the user**, but no post-reboot confirmation has been received:
+After desktop login, via SSH:
 
 ```bash
-mkdir -p ~/.config/autostart
-cat > ~/.config/autostart/rackio-touch.desktop <<'EOF'
-[Desktop Entry]
-Type=Application
-Name=Rackio Touchscreen Configuration
-Comment=Disable upper touch and map lower touch
-Exec=/home/arn/.local/bin/rackio-touch.sh
-Terminal=false
-X-GNOME-Autostart-enabled=true
-X-GNOME-Autostart-Delay=3
-EOF
-```
-
-Before relying on it, confirm `~/.local/bin/rackio-touch.sh` is executable (e.g., `chmod +x ~/.local/bin/rackio-touch.sh`), log out/in or reboot, then verify lower touch accuracy and upper touch disabled. This is **desktop-login autostart**, not a pre-login service; desktop automatic login is a separate future appliance decision.
-
-## Troubleshooting and rollback
-
-```bash
-DISPLAY=:0 xinput list
 DISPLAY=:0 xrandr --listmonitors
+DISPLAY=:0 xinput list
 ```
 
-Manual correction on the **tested** assignment only, while those IDs remain valid:
+Expect **one** active monitor, 1280×400. The new output name and desktop origin still need to be observed; `HDMI-2` and `+0+0` are plausible but should **not** be invented.
+
+Test four corners and center. If accurate, **leave Linux Mint's default touch mapping alone**. Only if inaccurate, identify the lower touchscreen using touch events and map to the one *currently reported* XRandR output:
 
 ```bash
-DISPLAY=:0 xinput disable 9
-DISPLAY=:0 xinput map-to-output 22 HDMI-2
+DISPLAY=:0 xinput test-xi2 --root
+# Identify current ID from physical touches, then:
+DISPLAY=:0 xinput map-to-output CURRENT_TOUCH_ID CURRENT_OUTPUT
 ```
 
-To disable the autostart behavior:
+Do not run the second line literally; replace the placeholders after inspection.
 
-```bash
-mv ~/.config/autostart/rackio-touch.desktop ~/.config/autostart/rackio-touch.desktop.disabled
-```
+## Historic dual-screen correction — obsolete
 
-For **current-session** re-enabling, dynamically identify the upper touch/mouse devices and run `DISPLAY=:0 xinput enable <CURRENT_ID>` for each one. Do not blindly enable an ID remembered from a previous boot.
+Previously Linux Mint reported:
 
-If either touch USB cable changes ports, update the port selectors in the script. If the monitor HDMI layout changes, review the `HDMI-2` target.
+| Physical screen | Old monitor output/position | USB physical path |
+| --- | --- | --- |
+| Upper 1U, removed | HDMI-1, 1424×280 +0+0 | `...usb-0:7:1.0` touch and `...:1.2` mouse |
+| Lower 2U, retained | HDMI-2, 1280×400 +59+280 | `...usb-0:6:1.0` touch and `...:1.2` mouse |
 
-No persistent `xorg.conf` changes or `udev` rules were required.
+Both presented identically named `wch.cn TouchScreen` interfaces (USB vendor/product `27C0:0859`, identical serial number), so we previously used USB physical paths instead of numeric IDs. The earlier script disabled the upper interface and mapped the lower to HDMI-2; it **worked on the former dual-monitor setup** but is **retired**.
 
-## Web appliance integration (planned)
+Do **not** restore `scripts/rackio-touch.sh` from older Git commits. XInput device IDs and `/dev/input/eventN` are not stable across boots.
 
-The SDRbox application will **not** use PySide6. A future **rackio-hosted FastAPI web server** will serve Chromium `/status` on HDMI-1 (read-only) and `/control` on HDMI-2 (touch); remote LAN browsers will use `/`. Keep this tested touchscreen mapping independent of the future Chromium kiosk autostart. **Browser window positioning, kiosk autostart and web server deployment are not yet tested or installed.** See [ARCHITECTURE.md](ARCHITECTURE.md) and [UI.md](UI.md).
+## Web browser appliance
+
+With one screen, configure **one local Chromium kiosk/fullscreen window** for SDRbox's control page once the web server exists. Touch handling is native Linux Mint + browser behaviour, not PySide6. Remote browsers on the LAN do not require any local touch device.
+
+**Pending field test:** reboot, verify one XRandR monitor and accurate touch, then update this doc with actual output name/coordinates and whether any mapping script remains necessary.

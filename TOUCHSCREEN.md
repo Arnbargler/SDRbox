@@ -14,7 +14,7 @@ rm -f ~/.local/bin/rackio-touch.sh
 sudo reboot
 ```
 
-**Not yet confirmed:** whether the above was executed, whether a clean reboot happened, and whether the lower screen is accurate when used alone. Do not state that touch is proven after the hardware change.
+****Verified 2026-11-11:** user removed the two legacy files, grep of user startup locations found no references, rebooted and confirmed accurate touch.
 
 ## Verify the current single monitor
 
@@ -55,3 +55,7 @@ Do **not** restore `scripts/rackio-touch.sh` from older Git commits. XInput devi
 With one screen, configure **one local Chromium kiosk/fullscreen window** for SDRbox's control page once the web server exists. Touch handling is native Linux Mint + browser behaviour, not PySide6. Remote browsers on the LAN do not require any local touch device.
 
 **Pending field test:** reboot, verify one XRandR monitor and accurate touch, then update this doc with actual output name/coordinates and whether any mapping script remains necessary.
+
+## Clean single-display confirmation (2026-11-11)
+
+Removed `~/.config/autostart/rackio-touch.desktop` and `~/.local/bin/rackio-touch.sh`. Startup grep returned no matching references in checked user config. Reboot confirmed HDMI-2 1280×400 at +0+0, with working touchscreen. No manual touch remapping needed.

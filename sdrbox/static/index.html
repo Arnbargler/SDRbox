@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101a1a">
+  <title>SDRbox Control</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand"><span class="brand-mark">◉</span> SDR<span>BOX</span> <small>RECEIVER CONTROL</small></div>
+      <div class="head-right"><strong class="demo">SIMULATION · NO RF</strong><span id="connection" class="offline">CONNECTING</span></div>
+    </header>
+    <main>
+      <section class="banks" aria-label="Scan banks">
+        <button class="bank" data-bank="CB" aria-pressed="false">CB<small>27 MHz</small></button>
+        <button class="bank active" data-bank="GMRS" aria-pressed="true">GMRS<small>462 / 467 MHz</small></button>
+        <button class="bank" data-bank="AIR" aria-pressed="false">AIR<small>AM VHF</small></button>
+        <button class="bank" data-bank="AMB" aria-pressed="false">AMB<small>Later</small></button>
+        <button class="bank" data-bank="FIRE" aria-pressed="false">FIRE<small>Later</small></button>
+      </section>
+      <div class="middle">
+        <section class="receiver panel">
+          <div class="eyebrow">ACTIVE RECEIVER <span id="status">STOPPED</span></div>
+          <div class="frequency"><span id="frequency">---.----</span><span class="unit">MHz</span></div>
+          <div class="channel"><span id="channel">NO CHANNEL</span><span id="modulation">NFM</span></div>
+          <div class="signal-header"><span>SIGNAL</span><span id="signal-value">0% (DEMO)</span></div>
+          <div class="signal"><div id="signal-bar"></div></div>
+        </section>
+        <section class="activity panel">
+          <div class="eyebrow">RECENT ACTIVITY <span>DEMO DATA ONLY</span></div>
+          <div id="hits" class="hits"><p class="empty">No simulated activity yet.</p></div>
+        </section>
+      </div>
+      <div class="actions">
+        <button id="scan" class="primary">▶ SCAN</button>
+        <button id="hold">Ⅱ HOLD</button>
+        <button id="skip">⏭ SKIP</button>
+        <button id="settings">⚙ INFO</button>
+        <div id="message" class="message" role="status">Connecting to SDRbox…</div>
+      </div>
+    </main>
+    <footer><span id="device">SIMULATOR</span><span>LOCAL AUDIO: NOT ENABLED · LAN CONTROL ONLY</span></footer>
+  </div>
+  <dialog id="info">
+    <h2>SDRbox v0.1 · simulation</h2>
+    <p>All tuning, signal readings and recent hits are simulated. No RTL-SDR is opened and no audio is produced yet.</p>
+    <p>GMRS is our first live RF target. CB, AIR, AMB and FIRE are UI placeholders.</p>
+    <button id="close-info">CLOSE</button>
+  </dialog>
+</body>
+</html>

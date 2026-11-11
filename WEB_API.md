@@ -1,3 +1,5 @@
+> **Implementation update 2026-11-11:** FastAPI + shared simulator + browser UI now exist; [RUNNING.md](RUNNING.md) is the current usage guide. GMRS/NFM with a walkie-talkie is the first planned live test, not AIR. Use ordinary local/remote Chrome browsers; kiosk/headless startup is optional later. No network audio. Some planning text below predates this decision.
+
 # SDRbox HTTP/WebSocket API (proposed)
 
 **Updated 2026-11-08. Not implemented.** One local touchscreen and many remote LAN browsers share one scanner backend.

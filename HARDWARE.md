@@ -6,7 +6,7 @@
 
 | Item | Current state |
 | --- | --- |
-| Host | **rackio.local**, Dell OptiPlex in tec MOJO rack; exact model/CPU/RAM to verify |
+| Host | **rackio.local**, Dell OptiPlex 5060 Micro in tec MOJO rack, 8 GB RAM; CPU details not reverified |
 | OS | **Linux Mint**, not Xubuntu |
 | **Only local display** | **2U touchscreen, 1280×400 pixels** |
 | Former upper display | **1U 1424×280 monitor physically removed** on 2026-11-08 |
@@ -78,3 +78,7 @@ Capture actual CPU/RAM, audio device, SDR version/stable sample rates, tuner gai
 ## Approved eventual physical improvements
 
 Remote antenna/feedline, rotary encoder/volume knob and communications speaker. These are planned for later and do not need to precede the proof of concept.
+
+## Verified 2026-11-11
+
+After reboot: `DISPLAY=:0 xrandr --listmonitors` showed exactly one monitor: `HDMI-2 1280/597x400/336+0+0`; touch was confirmed accurate. Python 3.12.3 at `/usr/bin/python3`. No `pip3` binary in PATH at check time; use a venv and `python -m pip`.

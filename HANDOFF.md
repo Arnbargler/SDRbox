@@ -1,3 +1,15 @@
+# SDRbox handoff — updated 2026-11-11
+
+**Live code exists now:** FastAPI server, REST/WebSocket API and shared-state simulated scanner with a browser UI. See [RUNNING.md](RUNNING.md). **No real SDR or audio integration yet.** This supersedes older planning-only status statements below.
+
+**Confirmed hardware:** Dell OptiPlex 5060 Micro, 8 GB RAM, Linux Mint, NooElec NESDR Smart. One HDMI-2 1280×400 screen at +0+0 and touch working following reboot. Old dual-screen startup files removed.
+
+**Priority change:** GMRS-first using user's walkie-talkie, then AIR. **Normal Chrome/Chromium locally and remotely** on the home LAN; no obligation to run headless or configure kiosk yet. Local radio audio when real demodulation is integrated; no network/browser audio for now.
+
+**Immediate next test:** install environment, `python -m uvicorn sdrbox.main:app --host 0.0.0.0 --port 8080`, verify touch layout and two synced browser sessions. Then implement a live single-frequency GMRS NFM receiver and rackio-local audio before automatic scan/squelch.
+
+---
+
 # SDRbox — next AI / developer handoff
 
 **Updated 2026-11-08. Read this before making changes.** Then review README, UI, HARDWARE, TOUCHSCREEN, ARCHITECTURE, WEB_API, REQUIREMENTS and DEVELOPMENT.

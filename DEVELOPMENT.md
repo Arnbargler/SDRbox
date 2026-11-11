@@ -1,3 +1,13 @@
+# SDRbox current milestone — 2026-11-11
+
+**M0 completed:** legacy dual-display startup references removed; reboot and accurate 1280×400 HDMI-2 +0+0 touch confirmed. Dell OptiPlex 5060 Micro, 8 GB; Python 3.12.3.
+
+**M1 implemented in repo, not yet tested on rackio:** FastAPI, state API, WebSocket, responsive UI, GMRS-default simulation. See [RUNNING.md](RUNNING.md). No live SDR or audio. Test in full Chrome/Chromium browser locally and remotely, no forced kiosk/headless mode.
+
+**M2 next:** establish true GMRS NFM reception using walkie-talkie to stimulate a known channel, with local rackio audio, then squelch/hold/resume/channel scanning. Airband AM work follows GMRS. No network audio yet.
+
+---
+
 # SDRbox development plan
 
 **Updated 2026-11-08.** Planning phase: no custom server/scanner code is deployed yet.

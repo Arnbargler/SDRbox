@@ -1,3 +1,5 @@
+> **Implementation update 2026-11-11:** FastAPI + shared simulator + browser UI now exist; [RUNNING.md](RUNNING.md) is the current usage guide. GMRS/NFM with a walkie-talkie is the first planned live test, not AIR. Use ordinary local/remote Chrome browsers; kiosk/headless startup is optional later. No network audio. Some planning text below predates this decision.
+
 # SDRbox UI — approved single-screen design
 
 **Decision date: 2026-11-08.** User physically removed the upper 1U monitor and selected **option #2** from three new single-display photo concepts.

@@ -1,10 +1,10 @@
 # SDRbox
 
-SDRbox is a **receive-only, scanner-first radio appliance** built around a Dell OptiPlex running **Linux Mint** and a **NooElec NESDR Smart (RTL-SDR)**.
+SDRbox is a **receive-only, scanner-first radio appliance** built around a Dell OptiPlex 5060 Micro (8 GB RAM) running **Linux Mint** and a **NooElec NESDR Smart (RTL-SDR)**.
 
 **2026-11-08 hardware decision:** the upper 1U display has been **removed**. There is now **one local 2U touchscreen, 1280×400 pixels**, for both information and controls. The web-server architecture remains unchanged.
 
-> **Status:** GQRX has received FM broadcast and activity around 118.800 MHz. No custom SDRbox scanner, FastAPI server, Chromium kiosk, or live web UI has yet been implemented. Mockup values are fictional demonstration data.
+> **Status (2026-11-11):** First browser/server/API implementation committed. **Simulation only**: no live SDR tuning, RF detection or audio yet. The first planned real RF test is **GMRS** with a walkie-talkie.
 
 ## Selected design: photo option #2
 
@@ -16,12 +16,12 @@ The photo is a design reference, **not a screenshot of running SDRbox software**
 
 ## Intended operation
 
-- **Rackio** runs one Python scanner backend plus a **FastAPI** HTTP/WebSocket server.
-- **One local Chromium browser** occupies the 1280×400 touchscreen, using `/control` or `/`.
+- **Rackio** runs FastAPI and one authoritative scanner state; first implementation uses a simulated receiver.
+- A regular full Chrome/Chromium browser on the 1280×400 rack touchscreen uses `/` (also `/control`); remote LAN browsers use the same UI.
 - Other computers/phones/tablets on the **home LAN** use the same server through a responsive `/` page; every browser shares one scanner state and tuner.
 - **Local speaker audio on rackio first**. Optional audio through remote browsers **later**.
 - Independently enable scanning **CB, GMRS, AIR, AMB, FIRE** banks. Each bank contains known channels and/or RF windows, not necessarily one contiguous frequency span.
-- **Airband first** (118.000–136.975 MHz). Validate conventional known-channel AM scanning, then FFT-based discovery across overlapping windows.
+- **GMRS first**, using a walkie-talkie for repeatable NFM receiver/scanner tests. AIR comes after.
 - Proposed server address `http://rackio.local:8080` is **not yet running**. LAN-only initially; no public Internet exposure.
 
 ## Project documents
@@ -48,3 +48,7 @@ The photo is a design reference, **not a screenshot of running SDRbox software**
 7. Short, testable milestones; user guides UI decisions and field tests.
 
 <https://github.com/Arnbargler/SDRbox>
+
+## Run the current prototype
+
+See [RUNNING.md](RUNNING.md) for installation and browser URLs. The initial implementation is **simulation-only** and never opens SDR hardware.

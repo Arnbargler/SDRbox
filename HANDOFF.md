@@ -93,3 +93,7 @@ Native rtl_fm scan of GMRS 1–7 added, using multiple `-f`, configurable `-l` t
 ## v0.3 field verification — 2026-11-11
 
 **Confirmed operational on rackio:** GMRS channels 1–7 scan works, with walkie-talkie transmissions received and squelch suppressing idle noise. User reports **15** is current best squelch, now the default. Don't assume this is calibrated or universal. Next step is accurate channel ID/event handling. No browser audio desired yet.
+
+## v0.4 candidate (awaiting rackio field test)
+
+Python managed scan module `sdrbox/scanner.py` coordinates GMRS 1–7 single-frequency rtl_fm children, reading squelched PCM to infer activity and broadcasting actual commanded tune, hit events and HOLD/SKIP. UI INFO profile `MANAGED_1_7` is default. Legacy native rtl_fm hopping remains selectable (`SCAN_1_7`) and already field-proven; fixed Channel 1 also retained. Python scheduler restarts rtl_fm per channel, potentially high latency; improve only after actual testing. No browser audio.

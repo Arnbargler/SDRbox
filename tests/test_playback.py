@@ -56,6 +56,16 @@ class PlaybackTests(unittest.TestCase):
         finally:
             player.stop()
 
+    def test_queue_time_reflects_actual_pcm_block_duration(self):
+        # 64ms of 24 kHz mono 16-bit PCM = 3072 bytes, not 16ms.
+        player = BufferedAudioPlayer()
+        player.writer = object()  # allow enqueue without ALSA thread
+        player.offer(bytes(3072))
+        self.assertEqual(player.stats()["queued_ms"], 64)
+        player.offer(bytes(3072))
+        self.assertEqual(player.stats()["queued_ms"], 128)
+        player.writer = None
+
     def test_offer_does_not_block_when_queue_full(self):
         player = BufferedAudioPlayer()
         # No audio worker consuming the queue: enqueue data directly to force

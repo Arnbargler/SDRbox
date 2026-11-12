@@ -81,3 +81,7 @@ The user reports the cloned SDRbox v0.1 simulator starts and that the normal bro
 ## Confirmed live GMRS NFM test — 2026-11-11
 
 Walkie-talkie Channel 1 (462.5625 MHz) successfully received using standalone `rtl_fm` piped into local `aplay` at 24 kHz, 30 dB requested tuner gain, software squelch disabled. Intelligible audio with slight latency. This is a verified **standalone RF/audio test**, not yet integrated into SDRbox. Next: incorporate rtl_fm/ALSA as the first radio backend, preserve simulation option; prioritize stable start/stop, shared status, cleanup on exit, and explicit AUDIO LOCAL indicator.
+
+## v0.2 integration added — 2026-11-11
+
+The GitHub repository now includes `sdrbox/receiver.py` running the previously proven GMRS 1 `rtl_fm | aplay` pipeline under supervised subprocesses; `sdrbox/main.py` exposes real start/stop/status via API and WebSocket. `SDRBOX_RECEIVER=sim` retains simulator. UI labels live mode accurately; no fake signal meter or hits. **Code committed but not yet run on rackio**: first action is `cd ~/SDRbox && git pull`, restart Uvicorn and test SCAN/STOP with the walkie-talkie. Single worker only, no competing GQRX, no network audio. See [RUNNING.md](RUNNING.md).

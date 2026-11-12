@@ -23,3 +23,9 @@ Read [HANDOFF.md](HANDOFF.md) for concise state, [RUNNING.md](RUNNING.md) for co
 Do not confuse the strongest displayed FFT bin with an identified radio transmission. That requires the next-stage candidate detector.
 
 Keep the service on trusted home LAN only; there is no authentication.
+
+## Latest S4 throughput experiment (2026-11-11)
+
+User field measurements: 64ms blocks at 2.048 MS/s average RTL read **66.6ms**, overall IQ supply around **0.86×** and ongoing periodic audio silence, even with stable S3 SELECTED / Gate OPEN. This indicates unsustainable source-to-audio throughput; the old DSP work ran on the same thread as synchronous USB reads.
+
+Current experimental version: capture at **1.536 MS/s**, keeping central **1.3 MHz** visible (462.000–463.300 MHz) and still covering GMRS channels 1–7. One worker owns RTL reads, one processes sequential IQ into 24kHz NFM PCM, one handles live FFT/selection, and a fourth writes PCM to ALSA. Audio worker queue overload is explicitly counted as **IQ lost**. This is a deliberate narrower-spectrum tradeoff, not yet tested on rackio. 

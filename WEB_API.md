@@ -39,3 +39,7 @@ POST `/api/v1/commands`: `{"command":"set_sensitivity","threshold_db":15}` (valu
 
 ## Throughput diagnostics update
 The receiver now reads 131072 IQ samples (64ms nominal at 2.048MS/s) per synchronous RTL USB call; NFM PCM is 1536 samples (64ms at 24kHz) per block. `spectrum.audio_diagnostics` includes `iq_block_ms` (64), `avg_iq_read_ms`, `avg_processing_ms`, `max_iq_interval_ms`, `max_demod_ms`, `pcm_supply_ratio`, queued_ms, dropped_chunks and writer timing. The UI shows `rate x · R.. P..ms` (R average read, P average processing), with other metrics in the audio detail tooltip. Experimental diagnostics for periodic audio starvation and still awaiting hardware test.
+
+## Capture and audio diagnostics — 1.536MS/s revision
+
+`sample_rate_hz` is now 1536000; `low_mhz=462.000`, `high_mhz=463.300`, tuner center remains 462.650. Each 131072-sample IQ read represents 85.33ms; 24kHz NFM PCM yields 2048 samples per IQ read. `spectrum.audio_diagnostics` combines capture and audio-worker statistics: `pcm_supply_ratio` measures SDR IQ supply/real-time, `avg_iq_read_ms` (USB-read duration), `avg_processing_ms` (audio DSP work per frame), `iq_dropped_blocks` (lost raw IQ because audio processing queue full), `iq_audio_queue_ms` (queued IQ waiting for NFM), and existing ALSA writer queue/write stats. FFT can skip snapshots; raw IQ drops are counted separately. Status not a production metric; test on rackio required.

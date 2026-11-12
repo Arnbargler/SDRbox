@@ -51,22 +51,29 @@ function draw(data){
  }
  trace("noise_db","#eabb78",2);
  trace("power_db","#7affb2",2.4);
- // Candidate centers are approximate FFT-derived peaks, not decoded signals.
+ // Orange markers: unselected FFT candidates. Cyan: S3 locked choice.
+ const selection=data.selection || {};
  (data.candidates || []).forEach(c => {
    const f=c.frequency_mhz;
-   if(f < low || f > high) return;
-   const x=X(f);
-   ctx.strokeStyle=c.provisional?"#86928e":"#ffcb6e";
-   ctx.lineWidth=2;ctx.setLineDash(c.provisional?[2,5]:[]);
+   if(f<low||f>high)return;
+   const x=X(f), isSelected=selection.frequency_mhz != null &&
+      Math.abs(f-selection.frequency_mhz)<=0.008 &&
+      (selection.status==="SELECTED" || selection.status==="HANG");
+   ctx.strokeStyle=isSelected?"#61d9fc":c.provisional?"#86928e":"#ffcb6e";
+   ctx.lineWidth=isSelected?3:2;
+   ctx.setLineDash(c.provisional && !isSelected?[2,5]:[]);
    ctx.beginPath();ctx.moveTo(x,T+23);ctx.lineTo(x,B);ctx.stroke();ctx.setLineDash([]);
    if(!c.provisional) {
-     ctx.fillStyle="#ffcb6e";ctx.beginPath();ctx.arc(x,T+21,4,0,Math.PI*2);ctx.fill();
+     ctx.fillStyle=isSelected?"#61d9fc":"#ffcb6e";
+     ctx.beginPath();ctx.arc(x,T+21,isSelected?6:4,0,Math.PI*2);ctx.fill();
    }
  });
- const peak=idx.reduce((a,i)=>data.power_db[i]>data.power_db[a]?i:a,idx[0]);
- const delta=data.power_db[peak]-data.noise_db[peak];
- $("peak-frequency").textContent=freq(peak).toFixed(4)+" MHz";
- $("peak-contrast").textContent=(delta>=0?"+":"")+delta.toFixed(1)+" dB above local floor · unqualified";
+ // Keep the selected marker during brief RF dropouts (HANG).
+ if(selection.status==="HANG" && selection.frequency_mhz>=low && selection.frequency_mhz<=high){
+   const x=X(selection.frequency_mhz);
+   ctx.strokeStyle="#61d9fc";ctx.setLineDash([5,5]);ctx.lineWidth=2.5;
+   ctx.beginPath();ctx.moveTo(x,T+10);ctx.lineTo(x,B);ctx.stroke();ctx.setLineDash([]);
+ }
 }
 function render(s){
  state=s;
@@ -79,6 +86,17 @@ function render(s){
  $("message").textContent=s.message;
  if(s.spectrum){
    const sp=s.spectrum;
+   const selection=sp.selection || {status:"SEARCHING",frequency_mhz:null};
+   $("selection-status").textContent=selection.status;
+   if(selection.frequency_mhz != null) {
+     $("peak-frequency").textContent=Number(selection.frequency_mhz).toFixed(4)+" MHz";
+     $("peak-contrast").textContent=selection.status==="HANG"
+       ? "Signal lost · releasing in "+Number(selection.release_remaining_s).toFixed(1)+" s"
+       : "+"+Number(selection.contrast_db).toFixed(1)+" dB · FFT candidate only, no audio";
+   }else{
+     $("peak-frequency").textContent="— MHz";
+     $("peak-contrast").textContent="Waiting for persistent signal";
+   }
    const candidates=sp.candidates || [];
    const stable=candidates.filter(c=>!c.provisional);
    $("candidate-count").textContent=String(stable.length);
@@ -109,8 +127,9 @@ function render(s){
    const noCandidates=document.createElement("small");
    noCandidates.textContent="Start capture to examine RF peaks";
    $("candidate-list").append(noCandidates);
+   $("selection-status").textContent="SEARCHING";
    $("peak-frequency").textContent="— MHz";
-   $("peak-contrast").textContent="Unqualified · not an identified transmission";
+   $("peak-contrast").textContent="No persistent candidate selected";
    draw(null);
  }
 }

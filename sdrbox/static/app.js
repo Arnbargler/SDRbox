@@ -51,6 +51,18 @@ function draw(data){
  }
  trace("noise_db","#eabb78",2);
  trace("power_db","#7affb2",2.4);
+ // Candidate centers are approximate FFT-derived peaks, not decoded signals.
+ (data.candidates || []).forEach(c => {
+   const f=c.frequency_mhz;
+   if(f < low || f > high) return;
+   const x=X(f);
+   ctx.strokeStyle=c.provisional?"#86928e":"#ffcb6e";
+   ctx.lineWidth=2;ctx.setLineDash(c.provisional?[2,5]:[]);
+   ctx.beginPath();ctx.moveTo(x,T+23);ctx.lineTo(x,B);ctx.stroke();ctx.setLineDash([]);
+   if(!c.provisional) {
+     ctx.fillStyle="#ffcb6e";ctx.beginPath();ctx.arc(x,T+21,4,0,Math.PI*2);ctx.fill();
+   }
+ });
  const peak=idx.reduce((a,i)=>data.power_db[i]>data.power_db[a]?i:a,idx[0]);
  const delta=data.power_db[peak]-data.noise_db[peak];
  $("peak-frequency").textContent=freq(peak).toFixed(4)+" MHz";
@@ -67,11 +79,36 @@ function render(s){
  $("message").textContent=s.message;
  if(s.spectrum){
    const sp=s.spectrum;
+   const candidates=sp.candidates || [];
+   const stable=candidates.filter(c=>!c.provisional);
+   $("candidate-count").textContent=String(stable.length);
+   const list=$("candidate-list");
+   list.replaceChildren();
+   if(!stable.length){
+     const line=document.createElement("small");
+     line.textContent=candidates.length?"Peaks seen; awaiting confirmation":"No persistent peaks above threshold";
+     list.append(line);
+   }else{
+     stable.slice(0,2).forEach(c=>{
+       const line=document.createElement("div");
+       line.className="candidate-entry";
+       const mhz=document.createElement("strong");
+       mhz.textContent=Number(c.frequency_mhz).toFixed(4)+" MHz";
+       const db=document.createElement("span");
+       db.textContent="+"+Number(c.contrast_db).toFixed(1)+" dB";
+       line.append(mhz,db);list.append(line);
+     });
+   }
    $("capture-label").textContent=sp.center_mhz.toFixed(3)+" MHz center · "+(sp.sample_rate_hz/1e6).toFixed(3)+" MS/s";
    $("capture-age").textContent="Last FFT: "+new Date(sp.captured_at*1000).toLocaleTimeString();
    draw(sp);
  }else{
    $("capture-age").textContent=running?"Waiting for IQ…":"No current IQ samples";
+   $("candidate-count").textContent="0";
+   $("candidate-list").replaceChildren();
+   const noCandidates=document.createElement("small");
+   noCandidates.textContent="Start capture to examine RF peaks";
+   $("candidate-list").append(noCandidates);
    $("peak-frequency").textContent="— MHz";
    $("peak-contrast").textContent="Unqualified · not an identified transmission";
    draw(null);

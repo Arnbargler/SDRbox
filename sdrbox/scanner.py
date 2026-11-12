@@ -1,7 +1,7 @@
 """Python-owned GMRS scan scheduler, using rtl_fm for single-channel NFM.
 
-One rtl_fm child per channel: this prioritizes correct channel attribution
-over retune speed. Live activity is inferred from nonzero squelched PCM.
+One rtl_fm child per channel: prioritizes channel attribution over retune speed.
+Activity is inferred from nonzero squelched PCM or a lack of further audio.
 """
 import os
 import select
@@ -114,8 +114,9 @@ class ManagedScanner:
                 self.callback("tuned", (channel, frequency / 1_000_000))
                 # One channel at a time. The 0.8s dwell starts on tuning.
                 deadline = time.monotonic() + 0.8
-                silence_since = None
+                last_signal_at = None
                 active = False
+                hang_seconds = 1.1
                 while not self._stop.is_set() and not self._skip.is_set():
                     if self.radio.poll() is not None:
                         raise RuntimeError(f"rtl_fm exited on {channel}: {self.radio.returncode}")
@@ -135,16 +136,16 @@ class ManagedScanner:
                         samples = memoryview(audio[:len(audio) & ~1]).cast("h")
                         signal_open = any(abs(v) > 50 for v in samples[::8])
                         if signal_open:
-                            silence_since = None
+                            last_signal_at = time.monotonic()
                             if not active:
                                 active = True
                                 self.callback("activity_start", None)
-                        elif active:
-                            if silence_since is None:
-                                silence_since = time.monotonic()
-                            elif time.monotonic() - silence_since >= 0.9:
-                                active = False
-                                self.callback("activity_end", None)
+                    # On some rtl_fm builds, closed squelch stops writing PCM
+                    # entirely rather than writing zero samples. Check elapsed
+                    # wall time even when select() receives NO audio bytes.
+                    if active and last_signal_at is not None and time.monotonic() - last_signal_at >= hang_seconds:
+                        active = False
+                        self.callback("activity_end", None)
                     if self._hold.is_set():
                         deadline = time.monotonic() + 0.8
                     elif not active and time.monotonic() >= deadline:

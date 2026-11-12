@@ -59,3 +59,7 @@ Persistent user config/history, diagnostic traces, truthful signal/radio-state i
 ## Prior history
 
 The incremental v0.1–v0.5 command/debugging narrative has been consolidated into the table above. All original details and intermediate commits remain in Git history. Notable preserved issues: PLL warning during `rtl_test -t` (not proven persistent failure), old v0.4 no-resume bug (fixed), and optional Python wrapper symbol mismatch (fixed).
+
+## S1 code candidate — 2026-11-11
+
+Implemented **`sdrbox/spectrum.py`**, an isolated FFT-only worker using one open `pyrtlsdr` receiver at 462.650 MHz / 2.048 MS/s. Reads 32768 IQ samples, computes eight 4096-point Hann-window FFTs, averages power, estimates a local 25th-percentile baseline over 201 FFT bins, and down-samples into 512 bins for browser display. Uses a ~1.70 MHz center crop (needs empirical passband validation), refreshes around 2–3 Hz, shares UI via state/WebSocket. No audio/hits/auto-selection. Added SPECTRUM_462 profile and live/GMRS-zoom canvas. **Not yet field-tested on rackio.** All pre-existing radio backend profiles preserved.

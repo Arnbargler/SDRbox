@@ -9,6 +9,7 @@ function setConnected(yes){
   $("connection").textContent=yes?"LAN CONNECTED":"DISCONNECTED";
   $("connection").className=yes?"online":"offline";
   $("capture").disabled=!yes;
+  $("sensitivity").disabled=!yes;
   if(!yes){$("receiver-state").textContent="DISCONNECTED";$("message").textContent="Connection lost · reconnecting…";}
   if(yes&&state)render(state);
 }
@@ -84,6 +85,10 @@ function render(s){
  $("capture").disabled=!connected;
  $("receiver-state").textContent=running?"CAPTURING":s.status;
  $("message").textContent=s.message;
+ $("sensitivity").value=String(s.threshold_db ?? 15);
+ $("sensitivity-value").textContent="+"+(s.threshold_db ?? 15)+" dB";
+ $("audio-status").textContent=s.audio?.startsWith("ERROR:")?"ERROR":s.audio?.includes("ACTIVE")?"RECEIVING":s.audio?.includes("STOPPED")?"STOPPED":"MUTED";
+ $("audio-detail").textContent=s.audio?.startsWith("ERROR:")?s.audio:"Rackio speaker · 24 kHz NFM";
  if(s.spectrum){
    const sp=s.spectrum;
    const selection=sp.selection || {status:"SEARCHING",frequency_mhz:null};
@@ -92,7 +97,7 @@ function render(s){
      $("peak-frequency").textContent=Number(selection.frequency_mhz).toFixed(4)+" MHz";
      $("peak-contrast").textContent=selection.status==="HANG"
        ? "Signal lost · releasing in "+Number(selection.release_remaining_s).toFixed(1)+" s"
-       : "+"+Number(selection.contrast_db).toFixed(1)+" dB · FFT candidate only, no audio";
+       : "+"+Number(selection.contrast_db).toFixed(1)+" dB · "+(selection.audio_active?"NFM audio active":"audio muted");
    }else{
      $("peak-frequency").textContent="— MHz";
      $("peak-contrast").textContent="Waiting for persistent signal";
@@ -143,6 +148,20 @@ function setZoom(next){
 }
 $("zoom-full").addEventListener("click",()=>setZoom("full"));
 $("zoom-gmrs").addEventListener("click",()=>setZoom("gmrs"));
+$("sensitivity").addEventListener("input",()=>{
+ $("sensitivity-value").textContent="+"+$("sensitivity").value+" dB";
+});
+$("sensitivity").addEventListener("change",async()=>{
+ if(!connected)return;
+ const threshold_db=Number($("sensitivity").value);
+ try{
+  const response=await fetch("/api/v1/commands",{
+   method:"POST",headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({command:"set_sensitivity",threshold_db})
+  });
+  if(!response.ok){const error=await response.json();$("message").textContent=error.detail||"Sensitivity change failed";}
+ }catch(e){$("message").textContent="Cannot update RF sensitivity";}
+});
 $("capture").addEventListener("click",async()=>{
  if(!connected||!state)return;
  const command=state.status==="SCANNING"?"scan_stop":"scan_start";

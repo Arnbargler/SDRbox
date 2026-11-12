@@ -27,3 +27,7 @@ Open `http://rackio.local:8080` in Chrome, hard-refresh to reload JS, then open 
 - Keep on trusted home LAN; no authentication or Internet exposure.
 
 If audio, scan cadence, detection or HOLD/SKIP behaves oddly, report the specific symptoms before changing thresholds. This version is deliberately a field-test candidate.
+
+## v0.4 field test and squelch-resume fix (2026-11-11)
+
+User verified Python-owned scanner advances at approximately **one GMRS channel per second**, correctly stops on a Channel 1 walkie-talkie transmission and demodulates voice. **Bug observed:** after PTT release it remained on Channel 1 until SKIP. Fix committed: evaluate the activity hang timer on **every scan-loop iteration**, even when `rtl_fm` stops delivering PCM entirely after squelch closes. Expected resumption after ~1.1 s without meaningful decoded audio. This fix still requires rackio field verification. Squelch 15 remains the starting setting. If continual decoded noise keeps refreshing the timer, additional RF/squelch discrimination will be required.

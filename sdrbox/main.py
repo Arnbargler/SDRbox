@@ -126,10 +126,15 @@ async def cycle():
         await asyncio.sleep(1 if MODE == "LIVE" else 1.5)
         async with LOCK:
             if MODE == "LIVE":
-                if state["status"] in ("RECEIVING", "HELD", "SCANNING") and state["scan_profile"] not in ("MANAGED_1_7", "PERSISTENT_1_7") and not receiver.running:
+                if state["status"] in ("RECEIVING", "HELD", "SCANNING") and state["scan_profile"] in ("SCAN_1_7", "FIXED_1") and not receiver.running:
                     reason = receiver.failure()
                     await asyncio.to_thread(receiver.stop)
                     state.update(status="ERROR", message=reason, audio="LOCAL AUDIO STOPPED")
+                    state["revision"] += 1
+                    await broadcast()
+                if state["scan_profile"] == "SPECTRUM_462" and state["status"] == "SCANNING" and not spectrum.running:
+                    state.update(status="ERROR", spectrum=None, audio="NO AUDIO (S1)",
+                                 message="Spectrum worker stopped: " + (spectrum.error or "unexpected exit"))
                     state["revision"] += 1
                     await broadcast()
                 continue

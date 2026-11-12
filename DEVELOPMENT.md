@@ -92,3 +92,10 @@
 ## Pending decisions/measurements
 
 Dell specs; active XRandR monitor identity after removal; single-panel touch; actual output speaker; chosen SDR libraries; receiver performance; local frequency channel lists; exact web port and service startup method; browser audio format (later).
+
+
+## Rackio bring-up verified — 2026-11-11
+
+- User successfully cloned SDRbox, installed Python dependencies in a virtual environment, and launched the FastAPI simulator. The web UI **looks and functions well** in a real browser; this is a user-observed acceptance test, not an automated test. Shared state across *two simultaneous browsers* has not been explicitly confirmed yet.
+- `rtl_test` and `rtl_fm` available under `/usr/bin`. `rtl_test -t` found one Realtek RTL2838UHIDIR device (SN 00000001), Rafael Micro R820T tuner and 29 manual gain options (0–49.6 dB); selected test sampling rate 2.048 MS/s. See [HARDWARE.md](HARDWARE.md) for complete output and interpretation. “No E4000 tuner found” is expected for this R820T; PLL warning remains to be checked during real tuning if persistent.
+- **Next milestone:** prove a live GMRS walkie-talkie signal using `rtl_fm`/existing tools, confirm rackio-local audio and then connect NFM reception to SDRbox; keep the working simulator intact. No network audio.

@@ -17,8 +17,8 @@
     $("frequency").textContent = s.frequency_mhz == null ? "---.----" : Number(s.frequency_mhz).toFixed(4);
     $("channel").textContent = s.channel || "NO CHANNEL";
     $("profile").value = s.scan_profile === "FIXED_1" ? "FIXED_1" : "SCAN_1_7";
-    $("squelch").value = s.squelch ?? 30;
-    $("squelch-value").textContent = s.squelch ?? 30;
+    $("squelch").value = s.squelch ?? 15;
+    $("squelch-value").textContent = s.squelch ?? 15;
     $("profile").disabled = !connected || s.mode !== "LIVE" || ["SCANNING","RECEIVING","HELD"].includes(s.status);
     $("squelch").disabled = !connected || s.mode !== "LIVE" || ["SCANNING","RECEIVING","HELD"].includes(s.status);
     $("modulation").textContent = s.modulation || "—";

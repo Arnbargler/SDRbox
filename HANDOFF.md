@@ -89,3 +89,7 @@ The GitHub repository now includes `sdrbox/receiver.py` running the previously p
 ## v0.3 GMRS scanning candidate
 
 Native rtl_fm scan of GMRS 1–7 added, using multiple `-f`, configurable `-l` threshold and `-t 5`, plus working fixed CH1 fallback. Local rackio audio only; settings in INFO require STOP first. No active channel reporting in scan, no actual signal meter/hits; HOLD/SKIP disabled for scan. **Awaiting field test; don't call it proven yet.** See RUNNING.md.
+
+## v0.3 field verification — 2026-11-11
+
+**Confirmed operational on rackio:** GMRS channels 1–7 scan works, with walkie-talkie transmissions received and squelch suppressing idle noise. User reports **15** is current best squelch, now the default. Don't assume this is calibrated or universal. Next step is accurate channel ID/event handling. No browser audio desired yet.

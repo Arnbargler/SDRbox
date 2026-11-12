@@ -112,3 +112,7 @@ Committed live GMRS Channel 1 fixed-frequency receiver using supervised `rtl_fm`
 ## v0.3 candidate — 2026-11-11
 
 Implemented native `rtl_fm` multi-frequency GMRS 1–7 squelch/hopping (`-l` configurable 1–100, `-t 5`) with browser INFO settings and retained fixed Channel 1 fallback. No active-channel attribution, RF signal meter or hit log; HOLD/SKIP disabled for scanning because rtl_fm provides no reliable active-frequency reporting. **Committed but not yet tested on rackio.** See [RUNNING.md](RUNNING.md).
+
+## v0.3 field result — 2026-11-11
+
+User verified real GMRS 1–7 scanner works with walkie-talkie. Squelch ~15 was the current sweet spot, updated as runtime/UI default. Next priority: accurate activity-channel reporting and meaningful hit log, avoiding fictitious RSSI/readouts; consider moving scan scheduling/detection into application if rtl_fm lacks structured channel events.

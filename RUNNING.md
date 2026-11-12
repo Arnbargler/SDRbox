@@ -17,10 +17,10 @@ Open `http://rackio.local:8080` in Chrome on your desktop, or `http://localhost:
 
 ## Test
 
-1. Open **INFO**, choose **Scan GMRS 1–7**, set squelch (initial value **30**), then close INFO.
+1. Open **INFO**, choose **Scan GMRS 1–7**, set squelch (initial value **15**), then close INFO.
 2. Press **SCAN**. The backend opens one rtl_fm instance with seven frequencies, and sends its decoded audio to rackio's local aplay process.
 3. Transmit briefly on GMRS 1 with your walkie-talkie; it should open squelch and be audible. Release PTT, and check that noise is muted and the receiver returns to hopping.
-4. Press **STOP** to release the device. If the receiver misses a strong transmission, reduce squelch (e.g. 15), then press SCAN again. If noise holds it open, increase squelch (e.g. 45). These are **starting experiments**, not calibrated RF levels.
+4. Press **STOP** to release the device. If the receiver misses a strong transmission, reduce squelch (e.g. 10), then press SCAN again. If noise holds it open, increase squelch (e.g. 25). These are **starting experiments**, not calibrated RF levels.
 5. To compare against the known-good v0.2 baseline, stop, select **Fixed GMRS 1**, then SCAN. Fixed mode has `-l 0` (no squelch).
 6. Verify start/stop multiple times and in a second browser if desired.
 
@@ -29,3 +29,7 @@ Only the **GMRS 1–7 simplex/interstitial 462 MHz frequencies** are included at
 Use **one** Uvicorn worker; no `--reload`, no kiosk requirement. To revert to simulation: `SDRBOX_RECEIVER=sim python -m uvicorn sdrbox.main:app --host 0.0.0.0 --port 8080`.
 
 This is an unauthenticated trusted-home-LAN prototype. Never port-forward. Squelch and hop speed are dependent on signal strength/noise and actual rtl_fm version; capture field observations before tuning further.
+
+## Field test: 2026-11-11
+
+User confirmed v0.3 **GMRS 1–7 scanning works**, including live walkie-talkie reception and squelch behaviour on the actual Dell OptiPlex 5060 Micro. A squelch value of **15** currently works best on this band/test antenna, so it is the new starting default. This is a local empirical setting, not a universal or calibrated RF sensitivity setting. No per-channel RF event identification or activity logging yet.

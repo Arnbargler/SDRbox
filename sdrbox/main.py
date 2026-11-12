@@ -29,7 +29,7 @@ LOCK = asyncio.Lock()
 HITS = deque(maxlen=40)
 state = {
     "revision": 0, "mode": MODE, "status": "STOPPED",
-    "scan_profile": "SCAN_1_7" if MODE == "LIVE" else "SIM", "squelch": 30,
+    "scan_profile": "SCAN_1_7" if MODE == "LIVE" else "SIM", "squelch": 15,
     "bank_enabled": {bank: bank == "GMRS" for bank in BANKS},
     "frequency_mhz": None, "channel": None, "modulation": "NFM",
     "signal_percent": None if MODE == "LIVE" else 0,

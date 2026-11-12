@@ -22,7 +22,7 @@ USABLE_HZ = 1_700_000
 UPDATE_SECONDS = 0.35
 
 
-def analyze(iq):
+def analyze(iq, return_bins=False):
     """Return relative averaged FFT power and locally estimated noise floor."""
     chunks = np.asarray(iq, dtype=np.complex64).reshape(-1, FFT_SIZE)
     window = np.hanning(FFT_SIZE).astype(np.float32)
@@ -40,7 +40,7 @@ def analyze(iq):
     indices = np.linspace(0, len(data), POINTS + 1, dtype=int)
     top = np.asarray([np.max(data[indices[i]:indices[i + 1]]) for i in range(POINTS)])
     noise = np.asarray([np.median(base[indices[i]:indices[i + 1]]) for i in range(POINTS)])
-    return {
+    result = {
         "center_mhz": CENTER_HZ / 1e6,
         "low_mhz": (CENTER_HZ - USABLE_HZ / 2) / 1e6,
         "high_mhz": (CENTER_HZ + USABLE_HZ / 2) / 1e6,
@@ -51,6 +51,7 @@ def analyze(iq):
         "noise_db": np.around(noise, 1).tolist(),
         "captured_at": time.time(),
     }
+    return (result, db, floor) if return_bins else result
 
 
 class SpectrumMonitor:
@@ -96,14 +97,9 @@ class SpectrumMonitor:
                 iq = sdr.read_samples(READ_SIZE)
                 if time.monotonic() - last < UPDATE_SECONDS:
                     continue
-                result = analyze(iq)
-                # Detection operates on full 4096-bin power, not the reduced
-                # 512-bin display; S2 never starts audio or records hits.
-                chunks = np.asarray(iq, dtype=np.complex64).reshape(-1, FFT_SIZE)
-                window = np.hanning(FFT_SIZE).astype(np.float32)
-                fft = np.fft.fftshift(np.fft.fft(chunks * window, axis=1), axes=1)
-                power = 10.0 * np.log10(np.maximum(np.mean(np.abs(fft) ** 2, axis=0), 1e-15))
-                floor = percentile_filter(power, percentile=25, size=201, mode="nearest")
+                # Reuse the SAME averaged FFT and local floor for spectrum and
+                # detection; do not double the CPU load each refresh.
+                result, power, floor = analyze(iq, return_bins=True)
                 candidates = detect_bins(power, floor, SAMPLE_RATE, CENTER_HZ)
                 result["candidates"] = self.tracker.update(candidates)
                 result["candidate_threshold_db"] = 10.0

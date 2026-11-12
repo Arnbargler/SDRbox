@@ -263,6 +263,7 @@ class SpectrumMonitor:
                 self.error = f"{type(exc).__name__}: {exc}"
                 self.callback("spectrum_error", self.error)
         finally:
+            self._stop.set()
             player.stop()
             if sdr is not None:
                 try:

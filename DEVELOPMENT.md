@@ -124,3 +124,7 @@ Added a dedicated Python-managed GMRS 1–7 scan profile, with single-frequency 
 ## v0.4 field result and fix candidate — 2026-11-11
 
 Real managed scanning runs ~1 channel/second and detects/demodulates a GMRS CH1 walkie-talkie transmission, but failed to resume after the transmission ended without manually pressing SKIP. Root cause suspected: hang-time logic only previously ran when a new PCM chunk was read, so it could not expire if `rtl_fm` closed squelch by not delivering any further chunks. Updated `scanner.py` to expire activity by wall-clock time on every loop tick, even with no new PCM. **Fix untested on rackio**; test CH1 PTT release and automatic scan resume. Keep SKIP fallback.
+
+## v0.4 auto-resume verified — 2026-11-11
+
+User confirmed the revised silence timeout is working better after the earlier stuck-on-channel bug. Managed scanning was observed at approximately 1 channel/second, and Channel 1 detection and audio already worked. Next recommended test: transmit on several GMRS channels, confirm accurate displayed frequency/hits, HOLD/SKIP, and correct resumption before replacing per-channel rtl_fm subprocesses with persistent tuner control. No measured scan latency or RSSI yet.

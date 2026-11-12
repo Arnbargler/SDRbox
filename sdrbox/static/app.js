@@ -32,7 +32,8 @@
     $("device").textContent = s.device;
     $("scan").textContent = ["SCANNING", "RECEIVING", "HELD"].includes(s.status) ? "■ STOP" : "▶ SCAN";
     $("skip").disabled = !connected || (s.mode === "LIVE" && (s.scan_profile !== "MANAGED_1_7" || !["SCANNING", "RECEIVING", "HELD"].includes(s.status)));
-    $("hold").disabled = !connected || (s.mode === "LIVE" && s.scan_profile === "SCAN_1_7") || !["SCANNING", "RECEIVING"].includes(s.status);
+    $("hold").disabled = !connected || (s.mode === "LIVE" && s.scan_profile === "SCAN_1_7") || !["SCANNING", "RECEIVING", "HELD"].includes(s.status);
+    $("hold").textContent = s.status === "HELD" ? "▶ RESUME" : "Ⅱ HOLD";
     buttons.forEach(b => {
       const enabled = !!s.bank_enabled[b.dataset.bank];
       b.classList.toggle("active", enabled);

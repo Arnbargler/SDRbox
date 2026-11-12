@@ -16,22 +16,22 @@
     $("status").textContent = s.status;
     $("frequency").textContent = s.frequency_mhz == null ? "---.----" : Number(s.frequency_mhz).toFixed(4);
     $("channel").textContent = s.channel || "NO CHANNEL";
-    $("profile").value = s.scan_profile === "FIXED_1" ? "FIXED_1" : "SCAN_1_7";
+    $("profile").value = s.scan_profile === "FIXED_1" ? "FIXED_1" : s.scan_profile === "SCAN_1_7" ? "SCAN_1_7" : "MANAGED_1_7";
     $("squelch").value = s.squelch ?? 15;
     $("squelch-value").textContent = s.squelch ?? 15;
     $("profile").disabled = !connected || s.mode !== "LIVE" || ["SCANNING","RECEIVING","HELD"].includes(s.status);
     $("squelch").disabled = !connected || s.mode !== "LIVE" || ["SCANNING","RECEIVING","HELD"].includes(s.status);
     $("modulation").textContent = s.modulation || "—";
-    $("signal-value").textContent = s.signal_percent == null ? "NOT MEASURED" : s.signal_percent + "% (DEMO)";
-    $("signal-bar").style.width = (s.signal_percent ?? 0) + "%";
+    $("signal-value").textContent = s.mode === "LIVE" ? (s.activity ? "SQUELCH OPEN" : "SQUELCH CLOSED / UNKNOWN") : s.signal_percent + "% (DEMO)";
+    $("signal-bar").style.width = s.mode === "LIVE" ? (s.activity ? "100%" : "0%") : (s.signal_percent ?? 0) + "%";
     $("mode-badge").textContent = s.mode === "LIVE" ? "LIVE GMRS · LOCAL AUDIO" : "SIMULATION · NO RF";
     $("mode-badge").className = s.mode === "LIVE" ? "online" : "demo";
-    $("activity-label").textContent = s.mode === "LIVE" ? "NO DETECTION YET" : "DEMO DATA ONLY";
+    $("activity-label").textContent = s.mode === "LIVE" ? "DETECTED SQUELCH EVENTS" : "DEMO DATA ONLY";
     $("audio").textContent = "AUDIO: " + s.audio;
     $("message").textContent = s.message;
     $("device").textContent = s.device;
     $("scan").textContent = ["SCANNING", "RECEIVING", "HELD"].includes(s.status) ? "■ STOP" : "▶ SCAN";
-    $("skip").disabled = !connected || s.mode === "LIVE";
+    $("skip").disabled = !connected || (s.mode === "LIVE" && (s.scan_profile !== "MANAGED_1_7" || !["SCANNING", "RECEIVING", "HELD"].includes(s.status)));
     $("hold").disabled = !connected || (s.mode === "LIVE" && s.scan_profile === "SCAN_1_7") || !["SCANNING", "RECEIVING"].includes(s.status);
     buttons.forEach(b => {
       const enabled = !!s.bank_enabled[b.dataset.bank];
@@ -44,7 +44,7 @@
     if (!s.hits.length) {
       const p = document.createElement("p");
       p.className = "empty";
-      p.textContent = s.mode === "LIVE" ? "Real signal detection is not implemented yet." : "No simulated activity yet.";
+      p.textContent = s.mode === "LIVE" ? "No detected activity yet." : "No simulated activity yet.";
       hits.append(p);
     }
     s.hits.forEach(h => {
@@ -85,7 +85,7 @@
   $("profile").addEventListener("change", () => send("set_scan_profile", {profile: $("profile").value}));
   $("squelch").addEventListener("change", () => send("set_squelch", {squelch: Number($("squelch").value)}));
   $("squelch").addEventListener("input", () => $("squelch-value").textContent = $("squelch").value);
-  $("settings").addEventListener("click", () => { $("info-mode").textContent = latest?.mode === "LIVE" ? "Live GMRS receiver. Scan 1–7 uses rtl_fm squelch-controlled hopping; exact active channel and hits are not reported. HOLD is unavailable during scan." : "Simulated scanning. No radio hardware or sound."; $("info").showModal(); });
+  $("settings").addEventListener("click", () => { $("info-mode").textContent = latest?.mode === "LIVE" ? "Managed scan 1–7 reports the frequency Python is tuning and creates squelch-derived activity events. Legacy scan leaves frequency unknown. HOLD and SKIP work in managed scan." : "Simulated scanning. No radio hardware or sound."; $("info").showModal(); });
   $("close-info").addEventListener("click", () => $("info").close());
   function connect() {
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";

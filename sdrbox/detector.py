@@ -19,7 +19,7 @@ STABLE_FRAMES = 2               # seen in two of latest three FFT updates
 HISTORY_FRAMES = 3
 
 
-def detect_bins(power_db, floor_db, sample_rate_hz, center_hz):
+def detect_bins(power_db, floor_db, sample_rate_hz, center_hz, threshold_db=OPEN_DB):
     """Find coarse RF blobs in an already-averaged, fftshifted power spectrum.
 
     Centers/widths are rough FFT estimates, not tuned or decoded voice.
@@ -33,7 +33,7 @@ def detect_bins(power_db, floor_db, sample_rate_hz, center_hz):
     offsets = (np.arange(n) - n // 2) * resolution
     usable = (np.abs(offsets) <= 850_000 - EDGE_GUARD_HZ) & (np.abs(offsets) >= DC_GUARD_HZ)
     contrast = power - floor
-    above = usable & np.isfinite(contrast) & (contrast >= OPEN_DB)
+    above = usable & np.isfinite(contrast) & (contrast >= threshold_db)
     # Join only one-bin gaps between elevated bins; longer gaps split signals.
     joined = binary_closing(above, structure=np.ones(3, dtype=bool))
     joined &= usable

@@ -1,61 +1,23 @@
-# Rackio touchscreen — single 1280×400 panel
+# Rackio — single 1280×400 touchscreen (verified)
 
-**Updated 2026-11-08. The upper 1U monitor is gone.**
+**Verified 2026-11-11.** The former 1U 1424×280 upper display was physically removed. One 2U 1280×400 screen remains and provides both scanner status and touch controls.
 
-## Current goal
+After removing the legacy dual-monitor startup script and rebooting, rackio reported:
 
-Maintain **one accurately working local touchscreen**: the **2U 1280×400** panel. No separate status display, no two-monitor coordinate offset and no need to disable the upper touchscreen.
-
-The user was previously instructed to remove the dual-screen startup config and reboot:
-
-```bash
-rm -f ~/.config/autostart/rackio-touch.desktop
-rm -f ~/.local/bin/rackio-touch.sh
-sudo reboot
+```text
+Monitors: 1
+0: +*HDMI-2 1280/597x400/336+0+0 HDMI-2
 ```
 
-****Verified 2026-11-11:** user removed the two legacy files, grep of user startup locations found no references, rebooted and confirmed accurate touch.
+Touch accuracy was confirmed; **no custom XInput mapping required**. Retired files were `~/.config/autostart/rackio-touch.desktop` and `~/.local/bin/rackio-touch.sh`. They were removed and checked for leftover startup references. Do not restore the old scripts from Git history.
 
-## Verify the current single monitor
-
-After desktop login, via SSH:
+If display/touch configuration changes, check:
 
 ```bash
 DISPLAY=:0 xrandr --listmonitors
 DISPLAY=:0 xinput list
 ```
 
-Expect **one** active monitor, 1280×400. The new output name and desktop origin still need to be observed; `HDMI-2` and `+0+0` are plausible but should **not** be invented.
+The previous two-panel mapping (`HDMI-1 1424×280 +0+0`, `HDMI-2 1280×400 +59+280`) is **obsolete**. XInput device IDs and `/dev/input/eventN` are unstable across boots.
 
-Test four corners and center. If accurate, **leave Linux Mint's default touch mapping alone**. Only if inaccurate, identify the lower touchscreen using touch events and map to the one *currently reported* XRandR output:
-
-```bash
-DISPLAY=:0 xinput test-xi2 --root
-# Identify current ID from physical touches, then:
-DISPLAY=:0 xinput map-to-output CURRENT_TOUCH_ID CURRENT_OUTPUT
-```
-
-Do not run the second line literally; replace the placeholders after inspection.
-
-## Historic dual-screen correction — obsolete
-
-Previously Linux Mint reported:
-
-| Physical screen | Old monitor output/position | USB physical path |
-| --- | --- | --- |
-| Upper 1U, removed | HDMI-1, 1424×280 +0+0 | `...usb-0:7:1.0` touch and `...:1.2` mouse |
-| Lower 2U, retained | HDMI-2, 1280×400 +59+280 | `...usb-0:6:1.0` touch and `...:1.2` mouse |
-
-Both presented identically named `wch.cn TouchScreen` interfaces (USB vendor/product `27C0:0859`, identical serial number), so we previously used USB physical paths instead of numeric IDs. The earlier script disabled the upper interface and mapped the lower to HDMI-2; it **worked on the former dual-monitor setup** but is **retired**.
-
-Do **not** restore `scripts/rackio-touch.sh` from older Git commits. XInput device IDs and `/dev/input/eventN` are not stable across boots.
-
-## Web browser appliance
-
-With one screen, configure **one local Chromium kiosk/fullscreen window** for SDRbox's control page once the web server exists. Touch handling is native Linux Mint + browser behaviour, not PySide6. Remote browsers on the LAN do not require any local touch device.
-
-**Pending field test:** reboot, verify one XRandR monitor and accurate touch, then update this doc with actual output name/coordinates and whether any mapping script remains necessary.
-
-## Clean single-display confirmation (2026-11-11)
-
-Removed `~/.config/autostart/rackio-touch.desktop` and `~/.local/bin/rackio-touch.sh`. Startup grep returned no matching references in checked user config. Reboot confirmed HDMI-2 1280×400 at +0+0, with working touchscreen. No manual touch remapping needed.
+Use an ordinary Chrome/Chromium browser at `http://localhost:8080` for now. One optional fullscreen/kiosk window may be configured later; neither a second monitor nor a second page is required. Browser audio is not part of this phase.

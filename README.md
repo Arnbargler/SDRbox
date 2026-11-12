@@ -1,54 +1,40 @@
 # SDRbox
 
-SDRbox is a **receive-only, scanner-first radio appliance** built around a Dell OptiPlex 5060 Micro (8 GB RAM) running **Linux Mint** and a **NooElec NESDR Smart (RTL-SDR)**.
+**SDRbox is a receive-only, spectrum-first radio monitoring appliance.** The goal is to look across usable SDR spectrum windows (roughly 2 MHz each on the current dongle), identify candidate signals above an adaptive noise floor, prioritize useful activity, and demodulate the selected signal. **Not** a conventional frequency-by-frequency scanner as the final architecture.
 
-**2026-11-08 hardware decision:** the upper 1U display has been **removed**. There is now **one local 2U touchscreen, 1280×400 pixels**, for both information and controls. The web-server architecture remains unchanged.
+**Current status — 2026-11-11:** FastAPI/browser control, local rackio audio, and several GMRS 1–7 receiver prototypes work. The persistent `pyrtlsdr` backend **starts and retunes at approximately three channels/second on rackio** after resolving a library compatibility error. This is still *per-channel retuning*, not wideband FFT discovery. Audio quality and detection performance in the persistent backend have **not yet been separately confirmed**. No spectrum-first detector is implemented.
 
-> **Status (2026-11-11):** v0.5 experimental persistent RTL-SDR receiver committed, **awaiting on-rack field test**. The v0.4 Python-managed rtl_fm scanner, with correct channel display, reception and automatic resume, was successfully tested on rackio. Chrome controls `rtl_fm → aplay` audio on rackio through the server; simulation remains optional. No reliable active-channel readout, hit detection or browser audio yet.
+## Hardware and UI
 
-## Selected design: photo option #2
+- Host: **rackio.local**, Dell OptiPlex 5060 Micro, 8 GB RAM, Linux Mint.
+- Receiver: **NooElec NESDR Smart**, RTL2832U/R820T. Future optional SDRplay RSP1A.
+- One **1280×400 HDMI-2 touchscreen**, accurate at +0+0. Former upper 1U display removed.
+- One FastAPI server, one shared radio, local Chrome and remote LAN browsers on `http://rackio.local:8080`.
+- Decoded audio plays on **rackio's speakers**, not over the browser. No kiosk requirement yet.
+- Visual reference: approved charcoal/green **single-screen option #2** (illustration, not live screenshot):
 
-The user approved the **second single-display mockup** from the three 2026-11-08 options, with polished dark industrial styling, five green/grey bank switches, frequency/meter, recent hits and large SCAN/HOLD/SKIP/SETTINGS controls.
+![Approved single-panel design concept](assets/scanner-mockup-option-2.webp)
 
-![Approved SDRbox option 2 preview](assets/scanner-mockup-option-2.webp)
+## Current software versus target
 
-The photo is a design reference, **not a screenshot of running SDRbox software**. See [UI.md](UI.md).
-
-## Intended operation
-
-- **Rackio** runs FastAPI and one authoritative scanner state; first implementation uses a simulated receiver.
-- A regular full Chrome/Chromium browser on the 1280×400 rack touchscreen uses `/` (also `/control`); remote LAN browsers use the same UI.
-- Other computers/phones/tablets on the **home LAN** use the same server through a responsive `/` page; every browser shares one scanner state and tuner.
-- **Local speaker audio on rackio first**. Optional audio through remote browsers **later**.
-- Independently enable scanning **CB, GMRS, AIR, AMB, FIRE** banks. Each bank contains known channels and/or RF windows, not necessarily one contiguous frequency span.
-- **GMRS first**, using a walkie-talkie for repeatable NFM receiver/scanner tests. AIR comes after.
-- Proposed server address `http://rackio.local:8080` is **not yet running**. LAN-only initially; no public Internet exposure.
-
-## Project documents
-
-| Document | Purpose |
+| Current and verified | Next development direction |
 | --- | --- |
-| [HANDOFF.md](HANDOFF.md) | **Start here** for next AI/developer |
-| [HARDWARE.md](HARDWARE.md) | Known hardware and checks |
-| [TOUCHSCREEN.md](TOUCHSCREEN.md) | Single-screen touch setup and retired dual-screen config |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Modular Python scanner and web server |
-| [WEB_API.md](WEB_API.md) | Proposed REST/WebSocket commands and shared state |
-| [UI.md](UI.md) | Approved **option #2** and 1280×400 single-screen layout |
-| [REQUIREMENTS.md](REQUIREMENTS.md) | Acceptance tests |
-| [DEVELOPMENT.md](DEVELOPMENT.md) | Incremental milestones |
+| GMRS 1–7 known-channel scanning with live local audio | FFT discovery over one whole ~2 MHz usable window |
+| Python/rtl_fm scanner: ~1 channel/s, correct displayed channels, activity, auto-resume | Adaptive local noise floor, candidate peak extraction and validation |
+| Persistent single-open SDR: ~3 channel retunes/s (startup/retune verified) | Detect all simultaneous signals in a captured window, rather than retuning each channel |
+| Web controls, shared backend, simulation and legacy fallback | Strongest qualified signal first; configurable priority later |
+| Local NFM prototype | AM airband and multiple overlapping windows/banks after GMRS proof |
 
-## Principles
+**A window is not guaranteed to have exactly 2.0 MHz of clean usable bandwidth.** Calibrate sample rate, overlap, center DC artifacts and edge performance on the actual NESDR. A single tuner cannot continuously observe separated 462 MHz and 467 MHz groups at once.
 
-1. Scanner appliance first, advanced SDR laboratory second.
-2. **One physical touchscreen**, not two. No separate status-monitor browser.
-3. **One receiver/controller**, regardless of connected browsers; browser closing must not stop scanning.
-4. Keep GQRX as diagnostic baseline (but never compete for the NESDR simultaneously).
-5. Reuse established SDR/DSP libraries and keep a future RSP1A adapter possible.
-6. Do not confuse illustrations or performance estimates with measured results.
-7. Short, testable milestones; user guides UI decisions and field tests.
+## Start here
 
-<https://github.com/Arnbargler/SDRbox>
+- [HANDOFF.md](HANDOFF.md) — short, authoritative state and next task
+- [DEVELOPMENT.md](DEVELOPMENT.md) — field results and upcoming milestones
+- [ARCHITECTURE.md](ARCHITECTURE.md) — target wideband algorithm and component boundaries
+- [REQUIREMENTS.md](REQUIREMENTS.md) — testable acceptance criteria
+- [RUNNING.md](RUNNING.md) — today's working code and commands
+- [HARDWARE.md](HARDWARE.md) / [TOUCHSCREEN.md](TOUCHSCREEN.md) — verified physical setup
+- [WEB_API.md](WEB_API.md) / [UI.md](UI.md) — actual interfaces and future presentation
 
-## Run the current prototype
-
-See [RUNNING.md](RUNNING.md) for installation and browser URLs. The initial implementation is **simulation-only** and never opens SDR hardware.
+**Development rule:** Make changes in small, user-tested increments; preserve at least one working `rtl_fm` fallback. No new code for the spectrum-first design until implementation is explicitly requested. LAN-only prototype; **do not expose its unauthenticated API to the Internet**.

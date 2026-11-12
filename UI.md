@@ -1,61 +1,31 @@
-> **Implementation update 2026-11-11:** FastAPI + shared simulator + browser UI now exist; [RUNNING.md](RUNNING.md) is the current usage guide. GMRS/NFM with a walkie-talkie is the first planned live test, not AIR. Use ordinary local/remote Chrome browsers; kiosk/headless startup is optional later. No network audio. Some planning text below predates this decision.
+# SDRbox interface — approved single-screen design
 
-# SDRbox UI — approved single-screen design
+**Status 2026-11-11:** The real FastAPI/HTML/CSS/JS page exists and operates in normal Chrome. The approved photo is an inspiration image, **not** a screenshot or measured signal display.
 
-**Decision date: 2026-11-08.** User physically removed the upper 1U monitor and selected **option #2** from three new single-display photo concepts.
+![Approved option #2 design reference](assets/scanner-mockup-option-2.webp)
 
-## Approved image
+## Hardware and style
 
-![Approved photo mockup #2](assets/scanner-mockup-option-2.webp)
+One HDMI-2 **1280×400** 2U touchscreen, dark charcoal/green industrial styling, large touch-friendly buttons. No upper 1U display, no second kiosk/window, no mandatory headless configuration.
 
-**The second mockup** is the premium, dark/glossy **one-screen tec MOJO rack** with a Dell OptiPlex below. Original generated image: `neon_green_sdr_scanner_rack_unit.png` (1448×1086 illustration). The repo includes a compressed preview of the actual image. It is **not** a running application screenshot; displayed signal values, dates, service frequencies and recent hits are illustrative.
+Same browser page served as `/` and `/control` locally on rackio and remotely from trusted home LAN. One backend owns the receiver; browser disconnect does not intentionally stop it. Audio on rackio, not browser.
 
-The old two-screen SVG has been **removed from the current branch**; it survives only in Git history and is not current design guidance.
+## Existing interface
 
-## Physical display
+- Five bank toggle tiles: CB / GMRS / AIR / AMB / FIRE (only GMRS genuinely implemented for live reception).
+- Large channel/frequency readout, modulation, activity state, hit list, SCAN / STOP / HOLD / RESUME / SKIP / INFO.
+- INFO contains current receiver profile and squelch adjustment; persistent profile uses its own hardcoded RF thresholds unrelated to the old rtl_fm slider.
+- WebSocket updates state and connection. Simulated activity is visibly marked.
 
-| Item | Current design |
-| --- | --- |
-| Only local screen | **2U touchscreen — 1280×400 px** |
-| Upper 1U | **Removed**; no informational-only panel |
-| Local app | **One** Chromium fullscreen/app window showing web control page |
-| Remote interface | Responsive version of same page on any LAN browser |
+## Next UI requirements for spectrum-first mode
 
-Previously the retained display was `HDMI-2`, at `+59+280` when paired with the upper monitor. **Current output name, origin, display scaling and touch behaviour after physically removing the other panel need rechecking**. Do not assume the old geometry survived. See [TOUCHSCREEN.md](TOUCHSCREEN.md).
+The primary display should distinguish **(a) scanned window span/center**, **(b) candidate signal frequency**, and **(c) selected audio frequency**. These are not interchangeable. Show actual FFT-derived activity/relative noise contrast, not decorative percentages. A compact candidate list or mini-spectrum can replace/reorganize the current signal meter and recent activity if necessary, but do not redesign the 1280×400 interface before discussing mockups with the user.
 
-## Browser routes and layout
+- Indicate window scanning, candidate confirmation, audio listening, manual HOLD, scan resume and errors clearly.
+- Show strongest qualified candidate first; a list can expose other concurrent peaks.
+- Display true, timestamped confirmed hits separately from transient peaks and simulation.
+- Retain large controls and readability at 1280×400. Keep advanced spectral diagnostics behind INFO or another secondary panel if the main layout becomes crowded.
 
-- Local: `/control`, potentially the same template as `/` with a compact 1280×400 layout.
-- Remote: `/` with responsive design.
-- **No local `/status` page or second Chromium kiosk window.** If a read-only status web page is later useful remotely, it is optional rather than required by hardware.
-- Same authoritative FastAPI scanner engine drives all pages. WebSockets keep state synchronized; reconnect fetches a snapshot. The browser is a client, not the owner of the SDR.
-- **Audio v1 comes out of rackio's local speakers**; browser playback is later.
+## Deferred
 
-## Home screen at 1280×400
-
-Fit everything below **without vertical scrolling**:
-
-1. **Thin header:** SDR Scanner, current operating/connection state and settings access.
-2. **Five large independent toggle tiles:** CB / GMRS / AIR / AMB / FIRE. Green = enabled in scan rotation; grey = excluded. Multiple tiles can be enabled at once.
-3. **Main left:** large current frequency, current bank, AM/NFM, signal meter. Use relative signal indication if dBm calibration is unavailable.
-4. **Main right:** compact recent activity (time, channel/frequency, bank, duration). Only genuine logged hits in live mode.
-5. **Bottom row:** large SCAN, HOLD, SKIP, SETTINGS buttons with generous touch targets. SCAN is most prominent.
-6. Secondary pages/panels handle bank editor, channels, squelch, volume, receiver diagnostics and optional FFT spectrum view.
-
-### Interaction requirements
-
-- HOLD differs from pausing automatically on a received signal.
-- SKIP temporarily leaves an active channel; optional cooldown/lockout is separate.
-- Bank changes made locally or remotely update all clients through the shared server.
-- Show scanner errors and stale/disconnected state honestly, rather than inventing levels or hits.
-- Simulated frontend test mode must be visibly identified as simulated.
-
-## Frontend technology
-
-Plain **HTML5 / CSS Grid / Flexbox / JavaScript ES modules** is the preferred starting point, served by FastAPI on Linux Mint. Avoid PySide6 and a duplicate local interface. Chromium fullscreen/kiosk geometry must be tested on the physical 1280×400 panel before designing desktop autostart.
-
-Use restrained premium charcoal styling, glossy panels sparingly, vibrant green active toggles, high contrast and large type. The photo is a **visual target** rather than artwork to slice up.
-
-## Image housekeeping
-
-The new option #2 supersedes the old two-monitor SVG. Keep the full-resolution generated PNG as the ultimate photo reference if it is later uploaded in full to the repository; the compressed preview is enough for README visibility now.
+Kiosk/autostart, remote-browser audio, full waterfall/spectrum lab UI, additional displays, recording UI and physical knobs.

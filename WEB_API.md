@@ -1,51 +1,40 @@
-> **Implementation update 2026-11-11:** FastAPI + shared simulator + browser UI now exist; [RUNNING.md](RUNNING.md) is the current usage guide. GMRS/NFM with a walkie-talkie is the first planned live test, not AIR. Use ordinary local/remote Chrome browsers; kiosk/headless startup is optional later. No network audio. Some planning text below predates this decision.
+# SDRbox HTTP / WebSocket interface
 
-# SDRbox HTTP/WebSocket API (proposed)
+**Current endpoints (implemented v0.5):**
 
-**Updated 2026-11-08. Not implemented.** One local touchscreen and many remote LAN browsers share one scanner backend.
-
-## Serving pages
-
-| Path | Use |
+| Endpoint | Meaning |
 | --- | --- |
-| `GET /` | Responsive scanner **control + status** for home LAN browsers |
-| `GET /control` | Compact **1280×400** local Chromium scanner page; may be alias/layout of `/` |
-| `GET /api/v1/state` | Full authoritative scanner snapshot |
-| `GET /api/v1/banks` | Configured bank definitions and enabled state |
-| `GET /api/v1/hits?limit=30` | Real confirmed activity |
-| `POST /api/v1/commands` | Validated, serialized scan/tune/bank commands |
-| `GET /api/v1/health` | Server, receiver and local audio readiness |
-| `WS /api/v1/events` | Snapshot on connect, then live state/telemetry/hits/errors |
+| `GET /` and `GET /control` | Same current responsive scanner page |
+| `GET /api/v1/health` | Server mode, receiver and local-audio status |
+| `GET /api/v1/state` | Authoritative scanner snapshot |
+| `GET /api/v1/banks` | Bank enabled/configured summary |
+| `GET /api/v1/hits?limit=30` | In-memory recent hits (not persistent storage) |
+| `POST /api/v1/commands` | Serialized controls |
+| `WS /api/v1/events` | Initial snapshot and subsequent shared-state snapshots |
 
-**Retired:** `/status` as a dedicated upper-1U display. That hardware has been removed. A future optional read-only web view is not prohibited, but is **not required** or part of the kiosk startup.
+Current commands: `scan_start`, `scan_resume`, `scan_hold`, `scan_stop`, `scan_skip`, `set_scan_profile`, `set_squelch`, `set_bank_enabled`. Check `sdrbox/main.py` for actual validation and errors rather than assuming unimplemented commands (e.g. volume or window selection) exist.
 
-Suggested address: `http://rackio.local:8080`; hostname exists, but **no web server/port has yet been deployed**.
+Current profiles: `PERSISTENT_1_7` (default live), `MANAGED_1_7`, `SCAN_1_7`, `FIXED_1`; simulation via process environment. Current state includes mode, status, commanded frequency, channel, audio label, activity, and latest hits. The known-channel frequency is **commanded tuning**, not a measured carrier frequency. Legacy native scan cannot report its internal currently tuned frequency.
 
-## Shared state
-
-- **One authoritative scanner state** for all connected clients, not one tuner per connection.
-- State includes receiver/device status, scan state (SCANNING/RECEIVING/HELD/ERROR), active bank/frequency/modulation, relative signal strength, enabled banks, audio output status and actual recent hits.
-- WebSocket clients receive complete snapshot on connect/reconnect followed by versioned events.
-- REST commands such as `scan_start`, `scan_hold`, `scan_resume`, `scan_skip`, `set_bank_enabled`, and `set_local_volume` are validated and queued into the scanner engine.
-- ACK means command accepted/rejected; reflect real state only when applied, rather than optimistic fake tuning.
-- When local and remote clients issue commands at once, server serializes them. Clients show disconnected/stale state if needed.
-- SDR backend and local sound **continue regardless of browsers closing**; a backend/server restart is a different lifecycle concern.
-
-Example command (illustrative):
+Example existing commands:
 
 ```json
-{"command":"set_bank_enabled","bank":"AIR","enabled":true,"request_id":"example"}
+{"command":"scan_start"}
 ```
 
-No raw IQ or continuous audio in the ordinary status WebSocket.
+```json
+{"command":"set_scan_profile","profile":"MANAGED_1_7"}
+```
 
-## Audio phases
+## Proposed additions for spectrum-first mode — NOT IMPLEMENTED
 
-- **V1:** decoded AM/NFM voice plays on rackio's local audio device. Volume/mute may be shared controls. Audio output independent of Chromium being open.
-- **Later:** separate encoded voice stream/player for remote browsers, including codec, playback permission/autoplay, bandwidth and latency decisions. Do not let browser audio delay initial working scanner.
+- `window_center_mhz`, `window_low_mhz`, `window_high_mhz`, usable bandwidth, configured sample rate and capture timestamp.
+- Separate `candidates` (estimated center/width/contrast, confidence/qualification), `selected_signal` (demodulation target), and `hits` (confirmed real events).
+- Relative spectral power/noise data with explicit units/definition; possibly a throttled compact FFT trace/event. Keep high-rate IQ/audio **off** ordinary status WebSocket.
+- Window scheduling and selector policy controls only after stable S1/S2 tests.
 
-## Safety / networking
+**Do not claim that a candidate FFT peak is a confirmed audio hit.** Event types and timestamps should support stale-state and ordering checks; websocket snapshots remain authoritative. Explicitly differentiate WINDOW_SCAN, CANDIDATE, RECEIVING and manual HOLD in future status.
 
-Start on **home LAN only**; no WAN exposure/port forwarding/public reverse proxy. Validate origins/commands; use appropriate cross-site protections for HTTP mutating requests and WebSocket connections. Add authentication/access control before allowing less-trusted network clients. Avoid arbitrary shell/USB commands through the API.
+## Web ownership and security
 
-Test with a simulated scanner first, clearly labelled as simulated, then connect real NESDR. Use local 1280×400 browser and a remote PC to confirm shared state, reconnect snapshots and audio continuing when browsers close.
+One authoritative server and SDR worker; local and remote browsers observe the same state. Audio generated on rackio independently of browser lifetime. The present system is an unauthenticated **trusted-LAN prototype**; do not expose the API publicly. Current origin checks cover WebSocket only; stronger HTTP origin/CSRF protection and authentication are needed before wider use. No arbitrary shell execution or remote transmission commands.

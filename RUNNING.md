@@ -1,10 +1,10 @@
-# SDRbox v0.5 — persistent RTL-SDR experimental receiver
+# SDRbox v0.5 — current build and tested fallbacks
 
-**Status:** v0.4 Python-controlled GMRS 1–7 scan was **field-verified** on rackio: ~1 channel/s, correct displayed frequencies and activity detection, local audio, automatic resumption. v0.5 adds an **experimental persistent SDR receiver**. No on-rack validation of v0.5 yet.
+**Updated 2026-11-11.** This document describes the **current sequential GMRS scanner implementations**, not the planned future spectrum-first FFT engine.
 
-## Install and launch over SSH
+## Run on rackio
 
-Stop the previous Uvicorn server with Ctrl+C, close GQRX and any standalone RTL-SDR tools, then:
+Stop any previous Uvicorn server with Ctrl+C. Ensure GQRX and standalone `rtl_fm` processes are closed.
 
 ```bash
 cd ~/SDRbox
@@ -14,38 +14,33 @@ python -m pip install -r requirements-persistent.txt
 python -m uvicorn sdrbox.main:app --host 0.0.0.0 --port 8080
 ```
 
-The new dependencies are `numpy`, `scipy`, `pyrtlsdr`. System `librtlsdr` is needed by pyrtlsdr; rackio already has rtl_test and rtl_fm, so the library is likely installed. To verify: `python -c "from rtlsdr import RtlSdr; print('RTL-SDR Python import OK')"`. The live app imports these only when the persistent profile starts, so failure doesn't prevent using the existing profile.
+Open `http://rackio.local:8080` from a home LAN browser or `http://localhost:8080` on rackio. Hard-refresh Chrome after JS/UI updates. Audio plays on **rackio's speakers only**. One server process and **one Uvicorn worker**; no competing GQRX or `--reload` multi-process setup.
 
-Open `http://rackio.local:8080` from remote Chrome, refresh with Ctrl+Shift+R. In **INFO**, choose **Persistent RTL-SDR scan**, then press SCAN. Watch GMRS channel/frequency change without restarting rtl_fm. Local ALSA speaker audio should play transmissions from your walkie-talkie. Release PTT and check that it resumes; test STOP, HOLD/RESUME and SKIP.
+## Receiver profiles in INFO
 
-## Architecture and limitations
+| Profile | Implementation | Verified |
+| --- | --- | --- |
+| Persistent RTL-SDR (`PERSISTENT_1_7`) | One `pyrtlsdr` open handle; sequential channel tuning, in-process FFT contrast/NFM DSP | **Starts, retunes ~3 channels/s** on rackio; separate audio/detection validation pending |
+| Python/rtl_fm (`MANAGED_1_7`) | Python cycles one `rtl_fm` child per frequency, squelch-aware activity and local audio | **Tested**: ~1 ch/s; CH1/3/7 frequency display, demod, auto resume |
+| Legacy scan (`SCAN_1_7`) | Native `rtl_fm` internally hops 1–7 | **Tested**: audio/squelch work, active frequency not available |
+| Fixed GMRS 1 (`FIXED_1`) | `rtl_fm` fixed 462.5625 MHz, squelch off | **Tested**: local audio |
+| Simulator | Launch with `SDRBOX_RECEIVER=sim` | UI demo without real RF/audio |
 
-- Opens exactly one `RtlSdr` USB handle, configures 1.024 MS/s with 30 dB requested gain, tunes `channel + 100 kHz` to avoid center DC, then digitally shifts the channel back to baseband.
-- SDR sampled in 32768-sample (~32 ms) chunks. NumPy/SciPy implement FFT relative channel power contrast, FM phase discrimination, audio filtering and rate conversion to 24 kHz. Local `aplay` remains the **only** audio output; no browser audio.
-- 0.38-second initial channel dwell plus tune/read overhead; 1.0-second activity hang. These are experimental defaults, not measured throughput. Absolute RSSI/dBm is **not** reported.
-- Detector currently uses fixed 5 dB start / 3 dB stay relative RF contrast thresholds. **The old squelch setting 15 has no equivalent meaning here** and adjusting the UI slider does not change persistent detection. We will calibrate the new threshold from actual observed reception before making it adjustable.
-- Real hits require RF contrast detection; false positives and misses are possible. The frequency displayed is the commanded channel, not a measured locked frequency. Scans only GMRS 1–7 for now.
-- No automatic kiosk/headless requirement. The server and scanner run while the SSH-launched Uvicorn process runs, independently of browsers. One worker only; never share hardware with GQRX.
+The legacy `rtl_fm` squelch setting **15** was effective with the current radio/antenna, **not a calibrated sensitivity**. The persistent backend's **5 dB open / 3 dB stay contrast thresholds** are independent; its UI squelch slider does **not** control them. Don't adjust that slider expecting persistent-mode changes.
 
-## Fallback (important)
+## Library compatibility — resolved
 
-In INFO select **Python / rtl_fm scan** (`MANAGED_1_7`) after STOP. This is the existing **field-tested working v0.4 implementation**; it restarts rtl_fm each channel. **Legacy rtl_fm scan** (`SCAN_1_7`) and **Fixed GMRS 1** (`FIXED_1`) are also retained.
+Initial persistent-mode startup failed with `undefined symbol: rtlsdr_set_dithering` against system `/lib/x86_64-linux-gnu/librtlsdr.so.2`. Optional dependencies were pinned to **`pyrtlsdr==0.2.91`** and **`setuptools<82`**. The user subsequently reported persistent mode **working and retuning ~3 channels/s**. No replacement of Linux's system RTL-SDR library was needed.
 
-If persistent scan fails to start or the audio sounds wrong, stop, select the proven Python/rtl_fm scan and report the server error. Do not change ten different settings at once.
+## What to observe when field-testing
 
-Trusted home LAN only; no authentication yet, never expose publicly.
+1. Profile selection, SCAN/STOP, HOLD/RESUME and SKIP; note any device-busy or ALSA errors.
+2. Actual CH1/3/7 signal detection and intelligible audio in persistent mode, **if not yet verified**.
+3. Correct activity log and automatic resumption after PTT.
+4. Compare startup, scan cadence and latency against tested `MANAGED_1_7` mode.
 
-## Library compatibility fix — 2026-11-11
+No wideband FFT chunk scanning is implemented. The [ARCHITECTURE.md](ARCHITECTURE.md) and [DEVELOPMENT.md](DEVELOPMENT.md) describe **planned next work**, not features in this build.
 
-First persistent startup on rackio failed with `AttributeError: /lib/x86_64-linux-gnu/librtlsdr.so.2: undefined symbol: rtlsdr_set_dithering`. This is a Python-wrapper/C-library API mismatch, **not** a device detection fault: current pyrtlsdr expects the optional dithering symbol absent from system Osmocom librtlsdr. We deliberately retain the working system radio library and pin `pyrtlsdr==0.2.91` with `setuptools<82` in `requirements-persistent.txt` instead of rebuilding/replacing librtlsdr. The downgrade is a proposed compatibility remedy and is not yet tested on rackio.
+## Safety
 
-From `~/SDRbox`, with `~/.venv` activated and old server stopped:
-
-```bash
-git pull
-python -m pip install --upgrade --force-reinstall 'pyrtlsdr==0.2.91' 'setuptools<82'
-python -c 'from rtlsdr import RtlSdr; print("Python SDR wrapper imports OK")'
-python -m uvicorn sdrbox.main:app --host 0.0.0.0 --port 8080
-```
-
-If the import still fails, collect `python -m pip show pyrtlsdr setuptools` and the exact traceback. No `sudo pip` or replacement of system shared libraries.
+The API runs on the trusted home LAN without authentication. **Do not port-forward or expose it to the Internet.** SDRbox is receive-only. Stop the server normally with Ctrl+C so child processes and USB handles are released.

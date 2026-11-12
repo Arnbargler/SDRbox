@@ -1,116 +1,67 @@
-> **Implementation update 2026-11-11:** FastAPI + shared simulator + browser UI now exist; [RUNNING.md](RUNNING.md) is the current usage guide. GMRS/NFM with a walkie-talkie is the first planned live test, not AIR. Use ordinary local/remote Chrome browsers; kiosk/headless startup is optional later. No network audio. Some planning text below predates this decision.
+# SDRbox architecture — spectrum-first direction
 
-# SDRbox — architecture
+**Decision: 2026-11-11. This describes the NEXT architecture, not current implemented functionality.** Today's receiver implementations scan known GMRS frequencies. We will build wideband FFT detection on the already working persistent-device foundation.
 
-**Revised 2026-11-08. Planning document; no implementation exists yet.**
-
-## Decisions
-
-- **Modular monolith** on Linux Mint, hostname `rackio.local`: one Python scanner controller, one FastAPI HTTP/WebSocket server and a browser frontend.
-- **Only one local 2U touchscreen (1280×400)**. A single Chromium kiosk/app page displays **both scanner information and controls**. Former upper 1U display and second Chromium window were removed from the plan.
-- Remote computers/tablets/phones on the home LAN use the **same** web server and state through a responsive page.
-- One NESDR owns the RF hardware, with a future interchangeable RSP1A adapter. No tuner per browser session.
-- **Local rackio audio first**; optional remote browser audio later.
-- No PySide6, Docker, microservice architecture or frontend framework required to start. FastAPI + vanilla HTML/CSS/JS ES modules is preferred.
-
-## Component boundaries
+## Guiding model
 
 ```text
-rackio (Linux Mint, Dell OptiPlex)
-  NooElec NESDR / future RSP1A
-        │ (one owner)
-  radio/              driver, IQ, DSP, AM/NFM, squelch, audio
-        │
-  core/               scanner state machine, scheduler, bank/channel/window models
-        │
-  web/ FastAPI        validated REST commands, WebSocket events, HTML/CSS/JS
-        ├── local Chromium: /control or / at 1280×400
-        └── LAN browser: / (responsive)
-  storage/            config, channel banks, hit history
-        │
-  local audio sink    rackio speaker/headphones, independent of browser lifespan
+One NESDR device owner (pyrtlsdr / librtlsdr)
+  -> tune a planned spectrum window; capture continuous complex IQ
+  -> FFT / averaged power spectrum
+  -> per-frequency local noise baseline; exclude DC spur & unusable edges
+  -> candidate peak / occupied-bandwidth estimation
+  -> persistence + hysteresis + modulation/service constraints
+  -> select strongest QUALIFIED candidate (initial policy)
+  -> extract subchannel from buffered/continuing wideband IQ
+  -> NFM or AM demodulation -> rackio-local audio
+  -> end-of-activity + hang timer -> return to search
+  -> state/hit events -> FastAPI/WebSocket -> all browsers
 ```
 
-**One server is authoritative**. Browsers receive a complete state snapshot on initial connection/reconnect and live changes over WebSocket. Browser commands are validated and serialized by the scanner engine; changing a toggle on the rack or remotely updates all clients. Closing any browser does **not** stop scanning.
+A strong FFT peak is **not automatically speech**: exclude tuner/DC artifacts, constant interferers, adjacent-channel bleed and momentary impulses; validate candidates before recording a hit. Preserve signal metadata (center frequency estimate, width, relative SNR/contrast, modulation, window, timestamps). Do not label uncalibrated values dBm or assume exact tuned carrier frequency.
 
-Suggested directory layout (not a requirement to create empty files prematurely):
+## Important design choice: work within a wide IQ window
 
-```text
-sdrbox/
-  main.py
-  core/
-    scanner.py
-    scheduler.py
-    models.py
-    events.py
-  radio/
-    base.py
-    rtl.py
-    detector.py
-    demod.py
-    audio.py
-  web/
-    api.py
-    websocket.py
-    static/
-      control.html
-      index.html
-      css/
-      js/
-  storage/
-    config.py
-    history.py
-config/
-  banks.yaml
-tests/
-assets/
-```
+At 462 MHz, GMRS/FRS channels 1–7 extend 462.5625–462.7125 MHz: just **150 kHz between end channel centers**. A single wideband capture can see all seven simultaneously. This is **not** seven tuner retunes.
 
-Implement headless scanner logic separately from browser pages so the radio is testable over SSH. Avoid blocking the FastAPI async loop with USB reads, FFT processing or audio; a dedicated worker thread/process and thread-safe command/event queue can handle it. Use a replaceable receiver protocol with open/configure/tune/read/close and runtime capabilities.
+Start with a fixed 462 MHz window. Compute a short-time spectrum and identify *all* simultaneously active candidates. Initially select the **strongest qualified signal above its local noise floor**, not simply the highest absolute FFT bin. Later add first-seen, round-robin or manual priorities to avoid repeatedly favoring a nearby strong transmitter.
 
-## Scan model: banks, chunks and channels
+Retain IQ availability for the currently captured window while listening when feasible: separate detection/monitor and demod/audio pipelines so receiving one channel need not blind the engine to other candidates *inside that same window*. Don't overpromise continuous monitoring of other windows with one tuner.
 
-- **Bank** is a user-facing category such as CB, GMRS, AIR, AMB, FIRE.
-- A bank contains configured **known channels** and/or sampled spectrum **windows**, with AM or NFM demodulation per relevant entry.
-- Each toggle independently includes/excludes its bank from the schedule. Deduplicate overlapping windows/channels.
-- A single NESDR cannot simultaneously monitor geographically/ spectrally separated windows. More banks imply longer revisit delay.
-- **Known-channel airband scanning first** to demonstrate real AM audio, squelch, pause, hold and resume.
-- Then prototype **wide-window FFT discovery**: tune center, collect IQ, estimate noise floor, detect signal candidates, reject DC/LO spur and interference, confirm likely AM voice before stopping/listening.
-- Prefer demodulating within the current IQ window rather than retuning when possible. Benchmark on the Dell rather than assuming speed.
+## Window planning
 
-## Airband planning
+- **Nominal** RTL-SDR sample rates ~2.048–2.4 MS/s may yield a **smaller** clean usable bandwidth; test actual stable IQ and aliasing/rolloff.
+- Use **overlapping windows** with explicit guard bands, suppress center DC/LO leakage, and avoid edge-attenuated candidate bins.
+- Begin at 462 MHz for GMRS 1–7. Expand to 467 MHz only after one-window detection/audio/hold/resume works.
+- Alternating 462/467 windows introduces unavoidable revisit gaps; multiple disjoint services/banks add more. Measure dwell, tune/settle time and missed-transmission probability rather than guessing.
+- Airband 118–137 MHz later: AM modulation, channel/spacing rules and overlapping ~2 MHz window plan based on measurements, not a fixed assumed count.
+- Treat CB 27 MHz and local AMB/FIRE services as future, research-dependent; some services are digital/trunked/encrypted and outside NFM/AM scope. RTL tuner/antenna limitations apply.
 
-- Civilian VHF voice: **118.000–136.975 MHz**, approximately **19 MHz**.
-- Nominal NESDR complex sampling ~**2.4 MS/s**, which does NOT imply full 2.4 MHz perfectly usable passband.
-- Eight windows is a mathematical floor at 2.4 MHz with no overlap; **around ten overlapping ~2MHz useful windows** is an initial design hypothesis.
-- Confirm channel raster/spacing appropriate to actual region and services (25 kHz and 8.33 kHz where used), center spur, usable edges and tuning/settling latency.
-- Use relative **noise-floor thresholds**, signal persistence, hysteresis and voice confirmation; do not assume every FFT peak is useful audio.
-- Local emergency services may be digital, trunked and/or encrypted; demo mockup labels are not authoritative frequency lists.
+## Engine boundaries (target, not current directories)
 
-## State machine
+1. **Receiver / IQ source:** single-owner open/configure/tune/read/close; later interchangeable RSP1A; one worker holds USB access.
+2. **Spectrum engine:** window-plan scheduler, FFT average and local noise estimation, peak grouping and channel bandwidth limits.
+3. **Detector:** qualification, dwell/persistence, start/stop thresholds, cooldown, false-positive controls and candidate ranking.
+4. **Selector / state machine:** SCANNING_WINDOW -> CANDIDATE -> RECEIVING -> RESUME_DELAY; manual HOLD/SKIP and STOP/ERROR.
+5. **Demod / audio:** IQ subchannel extraction, NFM first, AM later; keep 24 kHz rackio-local audio independent of browsers.
+6. **Web / persistence:** existing FastAPI, REST commands, WebSocket shared snapshots and real-only activity history.
 
-```text
-STOPPED → SCANNING → CANDIDATE → RECEIVING → RESUME_DELAY → SCANNING
-             ↕ HOLD                    ↗
-          ERROR / NO_DEVICE
-```
+The Python SDR/FFT worker must not block the FastAPI event loop. Use bounded buffers and thread-safe event/command handoff. Avoid recording a hit until candidate confirmation; differentiate **tuned window center**, **detected signal frequency**, and **demodulated selected frequency** in API/UI.
 
-- **SCANNING:** schedule enabled banks/windows.
-- **CANDIDATE:** short confirmation; suppress false peaks.
-- **RECEIVING:** AM/NFM decode to local audio, log confirmed hit.
-- **RESUME_DELAY:** let channel fall silent with configurable hang time.
-- **HOLD:** intentional user lock (not squelch pause).
-- **SKIP:** move on and optionally temporarily ignore same channel.
-- **ERROR/NO_DEVICE:** visible in all local and remote browser clients.
+## Today's code (keep until replacement proven)
 
-## Sound and networking
+- `sdrbox/main.py` — FastAPI and command/state wiring.
+- `sdrbox/persistent.py` — **single-open receiver** but still **sequential channel tuning**, ~3 channels/s observed; primitive contrast detection and NFM DSP.
+- `sdrbox/scanner.py` — Python-owned sequential per-channel `rtl_fm`, field-tested ~1 channel/s.
+- `sdrbox/receiver.py` — native `rtl_fm` scanning or fixed CH1.
+- `sdrbox/static/` — responsive dark control UI, not a wideband spectrum display yet.
 
-**Phase 1 sound:** PCM audio decoded from SDR and played on rackio's local audio output (through existing Linux sound system). Playback must not depend on a browser remaining connected.
+Do **not** delete the known-good receiver modes while designing or validating the spectrum engine.
 
-**Later sound:** add separate streaming sink and browser player. Codec/protocol and autoplay/latency handling are future design work, not blockers.
+## Explicit non-goals for this milestone
 
-**LAN only initially**. Proposed `http://rackio.local:8080` is not deployed. Keep control commands validated, restrict untrusted origins, and do not expose to public Internet without deliberate authentication/security work. See [WEB_API.md](WEB_API.md).
+No multi-SDR concurrent band coverage, transmission, encrypted/digital trunking decode, remote browser audio, generalized waterfall laboratory, new frontend framework, compulsory kiosk, or speculative performance promises.
 
-## Evaluate before building DSP from scratch
+## Engineering acceptance for first spectrum window
 
-GQRX remains known-good comparison. Consider librtlsdr / pyrtlsdr, GNU Radio, SoapySDR, `rtl_fm` / `rtl_power`, and [RTLSDR-Airband](https://github.com/rtl-airband/RTLSDR-Airband) as sources of existing functionality; verify suitability on Linux Mint and desired FFT detection. Never run GQRX and SDRbox against one NESDR simultaneously.
+Demonstrate simultaneous visibility of GMRS 1–7 within one IQ capture; stable local baseline; correctly identify one/two actual walkie-talkie transmissions by frequency; select and demodulate a qualifying NFM signal; release after hang; distinguish RF candidates from real confirmed hits; suppress spurs, idle false positives and repeated duplicates. Retain tested fallback and characterize CPU, missed signals, end-to-end latency and refresh rates.

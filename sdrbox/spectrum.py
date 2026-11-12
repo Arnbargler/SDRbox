@@ -3,6 +3,7 @@
 No tuner hops or confirmed hit logs; audio is local rackio ALSA only.
 All SDR USB calls and streaming DSP belong to one worker thread.
 """
+import queue
 import threading
 import time
 
@@ -72,6 +73,12 @@ class SpectrumMonitor:
         self.selector = SignalSelector()
         self.threshold_db = DEFAULT_THRESHOLD_DB
         self._threshold_changed = threading.Event()
+        self._fft_queue = queue.Queue(maxsize=1)
+        self._fft_thread = None
+        self._selection = {"status": "SEARCHING", "frequency_mhz": None}
+        self._audio_status = "LOCAL AUDIO MUTED"
+        self._audio_target_mhz = None
+        self._audio_stats = {}
 
     def set_threshold(self, threshold_db):
         value = float(threshold_db)
@@ -92,6 +99,10 @@ class SpectrumMonitor:
         self.tracker.reset()
         self.selector.reset()
         self._threshold_changed.clear()
+        self._selection = {"status": "SEARCHING", "frequency_mhz": None}
+        self._fft_queue = queue.Queue(maxsize=1)
+        self._fft_thread = threading.Thread(target=self._fft_loop, daemon=True, name="spectrum-fft")
+        self._fft_thread.start()
         self.thread = threading.Thread(target=self._run, daemon=True, name="spectrum-462")
         self.thread.start()
 
@@ -102,6 +113,74 @@ class SpectrumMonitor:
             if self.thread.is_alive():
                 raise RuntimeError("RTL-SDR spectrum read did not stop within 3 seconds")
         self.thread = None
+        if self._fft_thread is not None:
+            self._fft_thread.join(timeout=3)
+            if self._fft_thread.is_alive():
+                raise RuntimeError("FFT analysis worker did not stop")
+            self._fft_thread = None
+
+    def _fft_loop(self):
+        """Analyze a recent IQ sample without delaying capture or audio delivery.
+
+        A one-slot queue intentionally discards obsolete *visualization* frames.
+        It never discards or consumes audio samples, which remain exclusively
+        in the capture worker. Both workers only read immutable IQ arrays.
+        """
+        try:
+            while not self._stop.is_set():
+                try:
+                    iq = self._fft_queue.get(timeout=0.10)
+                except queue.Empty:
+                    continue
+                if self._threshold_changed.is_set():
+                    self._threshold_changed.clear()
+                    self.tracker.reset()
+                    self.selector.reset()
+                    self._selection = {"status": "SEARCHING", "frequency_mhz": None}
+                result, power, floor = analyze(iq, return_bins=True)
+                candidates = detect_bins(
+                    power, floor, SAMPLE_RATE, CENTER_HZ,
+                    threshold_db=self.threshold_db,
+                )
+                tracked = self.tracker.update(candidates)
+                def channel_candidates(items):
+                    unique = {}
+                    for c in items:
+                        hz = c["frequency_mhz"] * 1e6
+                        center = min(GMRS_CENTERS_HZ, key=lambda ch: abs(ch - hz))
+                        if abs(center - hz) > CHANNEL_TOLERANCE_HZ:
+                            continue
+                        item = dict(c)
+                        item["peak_frequency_mhz"] = c["frequency_mhz"]
+                        item["frequency_mhz"] = center / 1e6
+                        if center not in unique or item["contrast_db"] > unique[center]["contrast_db"]:
+                            unique[center] = item
+                    return list(unique.values())
+                eligible = channel_candidates(tracked)
+                weaker = detect_bins(
+                    power, floor, SAMPLE_RATE, CENTER_HZ,
+                    threshold_db=max(5.0, self.threshold_db - 5.0),
+                )
+                selection = self.selector.update(
+                    eligible, time.monotonic(), hold_candidates=channel_candidates(weaker)
+                )
+                self._selection = selection
+                result["candidates"] = tracked
+                result["selection"] = dict(selection)
+                result["candidate_threshold_db"] = self.threshold_db
+                result["candidate_method"] = "local_contrast_2_of_3_gmrs_selection"
+                result["audio"] = self._audio_status
+                result["audio_frequency_mhz"] = self._audio_target_mhz
+                result["audio_gate"] = "OPEN" if self._audio_target_mhz is not None else "CLOSED"
+                result["selection"]["audio_active"] = self._audio_target_mhz is not None
+                result["selection"]["audio_hold"] = selection["status"] == "HANG"
+                result["audio_diagnostics"] = dict(self._audio_stats)
+                self.callback("spectrum", result)
+        except Exception as exc:
+            if not self._stop.is_set():
+                self.error = f"FFT analysis: {type(exc).__name__}: {exc}"
+                self.callback("spectrum_error", self.error)
+                self._stop.set()
 
     def _run(self):
         sdr = None
@@ -125,69 +204,24 @@ class SpectrumMonitor:
                 audio_error = f"Cannot start aplay: {exc}"
             sdr.read_samples(READ_SIZE)  # discard unsteady initial samples
             last_fft = 0.0
+            started_at = time.monotonic()
+            produced_samples = 0
             while not self._stop.is_set():
                 iq = sdr.read_samples(READ_SIZE)
                 now = time.monotonic()
+                produced_samples += len(iq)
                 if last_iq_at is not None:
                     max_iq_gap_ms = max(max_iq_gap_ms, (now - last_iq_at) * 1000.0)
                 last_iq_at = now
-                if self._threshold_changed.is_set():
-                    self._threshold_changed.clear()
-                    self.tracker.reset()
-                    self.selector.reset()
-                    demod.reset()
-                    last_selection = {"status": "SEARCHING", "frequency_mhz": None}
                 if now - last_fft >= UPDATE_SECONDS:
-                    # FFT + detector reuse the SAME measured averaged spectrum.
-                    result, power, floor = analyze(iq, return_bins=True)
-                    candidates = detect_bins(
-                        power, floor, SAMPLE_RATE, CENTER_HZ,
-                        threshold_db=self.threshold_db,
-                    )
-                    tracked = self.tracker.update(candidates)
-                    # Show every RF candidate on FFT, but select/listen only
-                    # near actual GMRS 1–7 channel centers in this S4 milestone.
-                    # Map peaks to the SAME nominal GMRS channel center
-                    # before matching. Frequency estimates can shift several
-                    # kHz during FM speech; that is not a channel change.
-                    def channel_candidates(items):
-                        mapped = []
-                        for c in items:
-                            hz = c["frequency_mhz"] * 1e6
-                            nearest = min(GMRS_CENTERS_HZ, key=lambda center: abs(center - hz))
-                            if abs(nearest - hz) <= CHANNEL_TOLERANCE_HZ:
-                                item = dict(c)
-                                item["peak_frequency_mhz"] = c["frequency_mhz"]
-                                item["frequency_mhz"] = nearest / 1e6
-                                mapped.append(item)
-                        # Only the strongest apparent peak per radio channel.
-                        unique = {}
-                        for item in mapped:
-                            freq = item["frequency_mhz"]
-                            if freq not in unique or item["contrast_db"] > unique[freq]["contrast_db"]:
-                                unique[freq] = item
-                        return list(unique.values())
-
-                    eligible = channel_candidates(tracked)
-                    # Hysteresis: keep a selected channel using weaker RF
-                    # evidence, without letting weak peaks start new locks.
-                    hold_db = max(5.0, self.threshold_db - 5.0)
-                    weaker = detect_bins(
-                        power, floor, SAMPLE_RATE, CENTER_HZ,
-                        threshold_db=hold_db,
-                    )
-                    hold_candidates = channel_candidates(weaker)
-                    last_selection = self.selector.update(
-                        eligible, now, hold_candidates=hold_candidates
-                    )
-                    result["candidates"] = tracked
-                    result["selection"] = last_selection
-                    result["candidate_threshold_db"] = self.threshold_db
-                    result["candidate_method"] = "local_contrast_2_of_3_gmrs_selection"
+                    # Sending to FFT is nonblocking: stale display frames can
+                    # be skipped, but USB and PCM must never wait for an FFT.
+                    try:
+                        self._fft_queue.put_nowait(iq)
+                    except queue.Full:
+                        pass
                     last_fft = now
-                else:
-                    result = None
-
+                last_selection = self._selection
                 # Keep demodulation running through a short RF fade while
                 # the selector is in HANG. The 1.2 s timeout still ends
                 # the selection and mutes local audio on real release.
@@ -211,25 +245,19 @@ class SpectrumMonitor:
                 max_dsp_ms = max(max_dsp_ms, (time.monotonic() - dsp_started) * 1000)
                 player.offer(pcm)
                 audio_error = player.error or audio_error
-                if result is not None:
-                    result["audio"] = (
-                        "ERROR: " + audio_error if audio_error
-                        else "LOCAL NFM ACTIVE" if target_hz is not None
-                        else "LOCAL AUDIO MUTED"
-                    )
-                    result["audio_frequency_mhz"] = (
-                        target_hz / 1e6 if target_hz is not None and not audio_error
-                        else None
-                    )
-                    result["selection"]["audio_active"] = bool(target_hz is not None and not audio_error)
-                    result["selection"]["audio_hold"] = last_selection["status"] == "HANG"
-                    result["audio_gate"] = "OPEN" if target_hz is not None else "CLOSED"
-                    result["audio_diagnostics"] = {
-                        **player.stats(),
-                        "max_iq_interval_ms": round(max_iq_gap_ms, 1),
-                        "max_demod_ms": round(max_dsp_ms, 1),
-                    }
-                    self.callback("spectrum", result)
+                self._audio_status = (
+                    "ERROR: " + audio_error if audio_error
+                    else "LOCAL NFM ACTIVE" if target_hz is not None
+                    else "LOCAL AUDIO MUTED"
+                )
+                self._audio_target_mhz = target_hz / 1e6 if target_hz is not None and not audio_error else None
+                elapsed = max(0.001, time.monotonic() - started_at)
+                self._audio_stats = {
+                    **player.stats(),
+                    "max_iq_interval_ms": round(max_iq_gap_ms, 1),
+                    "max_demod_ms": round(max_dsp_ms, 1),
+                    "pcm_supply_ratio": round((produced_samples / SAMPLE_RATE) / elapsed, 3),
+                }
         except Exception as exc:
             if not self._stop.is_set():
                 self.error = f"{type(exc).__name__}: {exc}"

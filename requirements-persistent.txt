@@ -1,7 +1,0 @@
--r requirements.txt
-numpy>=1.26,<3
-scipy>=1.12,<2
-# Compatible with Ubuntu's Osmocom librtlsdr (no rtlsdr_set_dithering symbol).
-pyrtlsdr==0.2.91
-# Older pyrtlsdr uses pkg_resources, removed in setuptools 82.
-setuptools<82

@@ -1,40 +1,24 @@
-# SDRbox
+# SDRbox — spectrum-first receiver
 
-**SDRbox is a receive-only, spectrum-first radio monitoring appliance.** The goal is to look across usable SDR spectrum windows (roughly 2 MHz each on the current dongle), identify candidate signals above an adaptive noise floor, prioritize useful activity, and demodulate the selected signal. **Not** a conventional frequency-by-frequency scanner as the final architecture.
+SDRbox is a **receive-only wideband spectrum monitor**, not a conventional channel-hopping scanner. Our long-term goal is to capture overlapping ~2 MHz usable RF windows, discover multiple signals above their local noise floor, select the strongest qualified candidate, and demodulate it.
 
-**Current status — 2026-11-11:** S1 v0.6 spectrum visualization added to GitHub, **awaiting rackio field test**. FastAPI/browser control, local rackio audio, and several GMRS 1–7 receiver prototypes work. The persistent `pyrtlsdr` backend **starts and retunes at approximately three channels/second on rackio** after resolving a library compatibility error. This is still *per-channel retuning*, not wideband FFT discovery. Audio quality and detection performance in the persistent backend have **not yet been separately confirmed**. An FFT-only spectrum view is now implemented; there is **no spectrum-first signal detector or automatic selection**.
+## Current code: v0.7 (awaiting rackio retest)
 
-## Hardware and UI
+- One live window centered on **462.650 MHz** at **2.048 MS/s**.
+- Measured averaged FFT spectrum plus estimated local noise floor, refreshed ~2–3 times/second in the previous S1 interface.
+- Full-window and GMRS channels 1–7 display zoom; single START/STOP capture button.
+- A spectrum-centric 1280×400 Chrome UI, shared over the home LAN.
+- **No automatic candidate detection, audio, hit logging, or multi-window tuning yet.**
+- Old scanner profiles and modules removed from the current branch; Git history preserves them.
 
-- Host: **rackio.local**, Dell OptiPlex 5060 Micro, 8 GB RAM, Linux Mint.
-- Receiver: **NooElec NESDR Smart**, RTL2832U/R820T. Future optional SDRplay RSP1A.
-- One **1280×400 HDMI-2 touchscreen**, accurate at +0+0. Former upper 1U display removed.
-- One FastAPI server, one shared radio, local Chrome and remote LAN browsers on `http://rackio.local:8080`.
-- Decoded audio plays on **rackio's speakers**, not over the browser. No kiosk requirement yet.
-- Visual reference: approved charcoal/green **single-screen option #2** (illustration, not live screenshot):
+## Hardware
 
-![Approved single-panel design concept](assets/scanner-mockup-option-2.webp)
+rackio.local: Dell OptiPlex 5060 Micro, 8 GB, Linux Mint, NooElec NESDR Smart RTL2832U/R820T. One verified HDMI-2 1280×400 touchscreen at +0+0. FastAPI browser control on http://rackio.local:8080. No compulsory kiosk.
 
-## Current software versus target
+## Where to go
 
-| Current and verified | Next development direction |
-| --- | --- |
-| GMRS 1–7 known-channel scanning with live local audio | FFT discovery over one whole ~2 MHz usable window |
-| Python/rtl_fm scanner: ~1 channel/s, correct displayed channels, activity, auto-resume | Adaptive local noise floor, candidate peak extraction and validation |
-| Persistent single-open SDR: ~3 channel retunes/s (startup/retune verified) | Detect all simultaneous signals in a captured window, rather than retuning each channel |
-| Web controls, shared backend, simulation and legacy fallback | Strongest qualified signal first; configurable priority later |
-| Local NFM prototype | AM airband and multiple overlapping windows/banks after GMRS proof |
+Read [HANDOFF.md](HANDOFF.md) for concise state, [RUNNING.md](RUNNING.md) for commands, [ARCHITECTURE.md](ARCHITECTURE.md) for spectrum design and [DEVELOPMENT.md](DEVELOPMENT.md) for milestones.
 
-**A window is not guaranteed to have exactly 2.0 MHz of clean usable bandwidth.** Calibrate sample rate, overlap, center DC artifacts and edge performance on the actual NESDR. A single tuner cannot continuously observe separated 462 MHz and 467 MHz groups at once.
+Do not confuse the strongest displayed FFT bin with an identified radio transmission. That requires the next-stage candidate detector.
 
-## Start here
-
-- [HANDOFF.md](HANDOFF.md) — short, authoritative state and next task
-- [DEVELOPMENT.md](DEVELOPMENT.md) — field results and upcoming milestones
-- [ARCHITECTURE.md](ARCHITECTURE.md) — target wideband algorithm and component boundaries
-- [REQUIREMENTS.md](REQUIREMENTS.md) — testable acceptance criteria
-- [RUNNING.md](RUNNING.md) — today's working code and commands
-- [HARDWARE.md](HARDWARE.md) / [TOUCHSCREEN.md](TOUCHSCREEN.md) — verified physical setup
-- [WEB_API.md](WEB_API.md) / [UI.md](UI.md) — actual interfaces and future presentation
-
-**Development rule:** Make changes in small, user-tested increments; preserve at least one working `rtl_fm` fallback. No new code for the spectrum-first design until implementation is explicitly requested. LAN-only prototype; **do not expose its unauthenticated API to the Internet**.
+Keep the service on trusted home LAN only; there is no authentication.

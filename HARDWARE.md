@@ -82,3 +82,25 @@ Remote antenna/feedline, rotary encoder/volume knob and communications speaker. 
 ## Verified 2026-11-11
 
 After reboot: `DISPLAY=:0 xrandr --listmonitors` showed exactly one monitor: `HDMI-2 1280/597x400/336+0+0`; touch was confirmed accurate. Python 3.12.3 at `/usr/bin/python3`. No `pip3` binary in PATH at check time; use a venv and `python -m pip`.
+
+
+## RTL-SDR detection test — 2026-11-11
+
+From rackio with GQRX not using the dongle, `which rtl_test rtl_fm` returned `/usr/bin/rtl_test` and `/usr/bin/rtl_fm`. Command: `rtl_test -t`.
+
+Observed output:
+
+```text
+Found 1 device(s):
+  0: Realtek, RTL2838UHIDIR, SN: 00000001
+Using device 0: Generic RTL2832U OEM
+Detached kernel driver
+Found Rafael Micro R820T tuner
+Supported gain values (29): 0.0 0.9 1.4 2.7 3.7 7.7 8.7 12.5 14.4 15.7 16.6 19.7 20.7 22.9 25.4 28.0 29.7 32.8 33.8 36.4 37.2 38.6 40.2 42.1 43.4 43.9 44.5 48.0 49.6
+[R82XX] PLL not locked!
+Sampling at 2048000 S/s.
+No E4000 tuner found, aborting.
+Reattached kernel driver
+```
+
+**Interpretation:** USB device and R820T tuner were successfully enumerated; 29 gain values from 0–49.6 dB were reported. The selected test sample rate was 2.048 MS/s; this line alone is **not** proof of sustained clean IQ capture. The `-t` option runs an E4000-specific test, so the “No E4000 tuner found” message is expected for an R820T device. A one-off PLL warning is not conclusive; investigate only if repeated when tuning real frequencies. Device released/re-attached the kernel driver on exit. Earlier working GQRX reception is useful independent evidence; live GMRS/NFM reception from SDRbox itself is not yet implemented.

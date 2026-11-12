@@ -20,7 +20,7 @@ class SignalSelector:
         self._selected = None
         self._last_seen = None
 
-    def update(self, candidates, now):
+    def update(self, candidates, now, hold_candidates=None):
         """Process an FFT frame and return a JSON-serializable selection state.
 
         now is monotonic seconds supplied by the caller for reliable timeout
@@ -32,8 +32,13 @@ class SignalSelector:
         ]
         if self._selected is not None:
             chosen_hz = self._selected["frequency_mhz"] * 1e6
+            # Existing locks use lower-threshold, possibly provisional
+            # evidence; only NEW locks require two-frame confirmation.
+            # A voice-modulated FM carrier is not guaranteed to have the
+            # same 3-bin shape on every 350 ms FFT snapshot.
+            evidence = hold_candidates if hold_candidates is not None else candidates
             matches = [
-                c for c in stable
+                c for c in evidence
                 if abs(c["frequency_mhz"] * 1e6 - chosen_hz) <= MATCH_HZ
             ]
             if matches:

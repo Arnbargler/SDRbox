@@ -116,3 +116,7 @@ Implemented native `rtl_fm` multi-frequency GMRS 1–7 squelch/hopping (`-l` con
 ## v0.3 field result — 2026-11-11
 
 User verified real GMRS 1–7 scanner works with walkie-talkie. Squelch ~15 was the current sweet spot, updated as runtime/UI default. Next priority: accurate activity-channel reporting and meaningful hit log, avoiding fictitious RSSI/readouts; consider moving scan scheduling/detection into application if rtl_fm lacks structured channel events.
+
+## v0.4 candidate — Python-owned channel scheduling
+
+Added a dedicated Python-managed GMRS 1–7 scan profile, with single-frequency rtl_fm per channel, squelched PCM activity estimation, live requested-frequency display, real hit events, HOLD and SKIP. Existing rtl_fm multi-frequency scan remains a field-tested fallback. **v0.4 is committed, not yet verified on rackio.** Restart-per-channel retuning will likely be slower than legacy scan; benchmark dwell, activity false positives, audio and cleanup. See RUNNING.md.

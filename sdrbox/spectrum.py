@@ -146,12 +146,39 @@ class SpectrumMonitor:
                     tracked = self.tracker.update(candidates)
                     # Show every RF candidate on FFT, but select/listen only
                     # near actual GMRS 1–7 channel centers in this S4 milestone.
-                    eligible = [
-                        c for c in tracked
-                        if min(abs(c["frequency_mhz"] * 1e6 - hz)
-                               for hz in GMRS_CENTERS_HZ) <= CHANNEL_TOLERANCE_HZ
-                    ]
-                    last_selection = self.selector.update(eligible, now)
+                    # Map peaks to the SAME nominal GMRS channel center
+                    # before matching. Frequency estimates can shift several
+                    # kHz during FM speech; that is not a channel change.
+                    def channel_candidates(items):
+                        mapped = []
+                        for c in items:
+                            hz = c["frequency_mhz"] * 1e6
+                            nearest = min(GMRS_CENTERS_HZ, key=lambda center: abs(center - hz))
+                            if abs(nearest - hz) <= CHANNEL_TOLERANCE_HZ:
+                                item = dict(c)
+                                item["peak_frequency_mhz"] = c["frequency_mhz"]
+                                item["frequency_mhz"] = nearest / 1e6
+                                mapped.append(item)
+                        # Only the strongest apparent peak per radio channel.
+                        unique = {}
+                        for item in mapped:
+                            freq = item["frequency_mhz"]
+                            if freq not in unique or item["contrast_db"] > unique[freq]["contrast_db"]:
+                                unique[freq] = item
+                        return list(unique.values())
+
+                    eligible = channel_candidates(tracked)
+                    # Hysteresis: keep a selected channel using weaker RF
+                    # evidence, without letting weak peaks start new locks.
+                    hold_db = max(5.0, self.threshold_db - 5.0)
+                    weaker = detect_bins(
+                        power, floor, SAMPLE_RATE, CENTER_HZ,
+                        threshold_db=hold_db,
+                    )
+                    hold_candidates = channel_candidates(weaker)
+                    last_selection = self.selector.update(
+                        eligible, now, hold_candidates=hold_candidates
+                    )
                     result["candidates"] = tracked
                     result["selection"] = last_selection
                     result["candidate_threshold_db"] = self.threshold_db
@@ -160,7 +187,10 @@ class SpectrumMonitor:
                 else:
                     result = None
 
-                audio_active = last_selection["status"] == "SELECTED"
+                # Keep demodulation running through a short RF fade while
+                # the selector is in HANG. The 1.2 s timeout still ends
+                # the selection and mutes local audio on real release.
+                audio_active = last_selection["status"] in ("SELECTED", "HANG")
                 selected_mhz = last_selection.get("frequency_mhz")
                 target_hz = None
                 if audio_active and selected_mhz is not None:
@@ -193,6 +223,8 @@ class SpectrumMonitor:
                         else None
                     )
                     result["selection"]["audio_active"] = bool(target_hz is not None and not audio_error)
+                    result["selection"]["audio_hold"] = last_selection["status"] == "HANG"
+                    result["audio_gate"] = "OPEN" if target_hz is not None else "CLOSED"
                     self.callback("spectrum", result)
         except Exception as exc:
             if not self._stop.is_set():

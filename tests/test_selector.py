@@ -61,6 +61,26 @@ class SelectorTests(unittest.TestCase):
         self.assertEqual(result["status"], "SELECTED")
         self.assertEqual(result["frequency_mhz"], 462.7125)
 
+    def test_provisional_evidence_maintains_lock(self):
+        selector = SignalSelector()
+        selector.update([candidate(462.5625)], 0)
+        # S2 cannot initiate a lock from provisional hits, but an existing
+        # lock can survive a modulation-induced low-confidence FFT frame.
+        result = selector.update([], 0.4, hold_candidates=[candidate(462.5625, 9, False)])
+        self.assertEqual(result["status"], "SELECTED")
+        self.assertEqual(result["frequency_mhz"], 462.5625)
+
+    def test_weaker_rf_cannot_start_new_lock(self):
+        selector = SignalSelector()
+        result = selector.update([], 0, hold_candidates=[candidate(462.5625, 9, False)])
+        self.assertEqual(result["status"], "SEARCHING")
+
+    def test_dropout_still_releases_when_no_rf_evidence(self):
+        selector = SignalSelector(release_seconds=1.2)
+        selector.update([candidate(462.5625)], 0)
+        selector.update([], 0.5, hold_candidates=[])
+        self.assertEqual(selector.update([], 1.21, hold_candidates=[])["status"], "SEARCHING")
+
     def test_reset_clears_selection(self):
         s = SignalSelector()
         s.update([candidate(462.5625)], 0)

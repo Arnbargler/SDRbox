@@ -63,3 +63,7 @@ The incremental v0.1–v0.5 command/debugging narrative has been consolidated in
 ## S1 code candidate — 2026-11-11
 
 Implemented **`sdrbox/spectrum.py`**, an isolated FFT-only worker using one open `pyrtlsdr` receiver at 462.650 MHz / 2.048 MS/s. Reads 32768 IQ samples, computes eight 4096-point Hann-window FFTs, averages power, estimates a local 25th-percentile baseline over 201 FFT bins, and down-samples into 512 bins for browser display. Uses a ~1.70 MHz center crop (needs empirical passband validation), refreshes around 2–3 Hz, shares UI via state/WebSocket. No audio/hits/auto-selection. Added SPECTRUM_462 profile and live/GMRS-zoom canvas. **Not yet field-tested on rackio.** All pre-existing radio backend profiles preserved.
+
+## S1 live-refresh regression, fix candidate — 2026-11-11
+
+Field test: S1 FFT graph rendered and showed a genuine CH1 PTT peak at the correct frequency, but stopped refreshing after its first snapshot. Root cause: generic `cycle()` watchdog mistakenly checked whether legacy `rtl_fm` was alive during `SPECTRUM_462` sessions; because there is intentionally no rtl_fm subprocess in S1, it set ERROR after ~1 s and subsequent FFT events were ignored. Updated watchdog to apply only to `SCAN_1_7` and `FIXED_1`, and added separate spectrum-worker liveness reporting. **Code committed, live-refresh fix awaiting rackio retest.**

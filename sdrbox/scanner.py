@@ -132,7 +132,7 @@ class ManagedScanner:
                             raise RuntimeError("Local speaker output failed") from exc
                         # rtl_fm emits zero PCM on closed squelch in single-frequency mode.
                         # Ignore tiny nonzero samples to tolerate codec/settling artifacts.
-                        samples = memoryview(audio).cast("h")
+                        samples = memoryview(audio[:len(audio) & ~1]).cast("h")
                         signal_open = any(abs(v) > 50 for v in samples[::8])
                         if signal_open:
                             silence_since = None

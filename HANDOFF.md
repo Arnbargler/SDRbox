@@ -33,3 +33,7 @@ LAN-only, unauthenticated controls; do not expose publicly.
 ## Current S2 test objective
 
 Run the unit tests and v0.8 spectrum app. Idle spectrum should normally display **zero persistent candidates**, although static spurs may generate false positives. Key GMRS CH1, then CH7; look for amber candidate markers and ~462.5625 / ~462.7125 MHz labels after at least two FFT frames. Detection threshold fixed 10 dB above local percentile baseline; minimum 3 adjacent bins; skips +/-12 kHz center DC and 35 kHz near crop edges. No signal is yet selected, heard or logged as a confirmed hit. Do not confuse a persistent spectral peak with confirmed radio traffic. Preserve 2–3 Hz capture while adding the detector; monitor for slowdown.
+
+## S2 field confirmation / next objective
+
+User observed no idle false positives in current test, and transmitting with talkie ~2 feet from NESDR yielded several candidates; highest-ranked candidate was correct frequency. Extra peaks may result from very strong near-field input. Suggest increase transmitter distance and validate signal ranking again. Next S3 should select/hold strongest qualified candidate and release cleanly before enabling NFM audio. Do not overstate false-positive immunity: observation was one field test.

@@ -1,4 +1,4 @@
-"""S1 diagnostic: single-window, receive-only RTL-SDR FFT spectrum.
+"""S2 diagnostic: single-window FFT spectrum and experimental RF candidates.
 
 No demodulation, activity events, hit logs, automatic tuning or playback.
 All USB access belongs to one worker thread, as in persistent.py.

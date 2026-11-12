@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0a1212">
 <title>SDRbox | Spectrum Monitor</title>
-<link rel="stylesheet" href="/static/style.css?v=10"><script src="/static/app.js?v=10" defer></script>
+<link rel="stylesheet" href="/static/style.css?v=11"><script src="/static/app.js?v=11" defer></script>
 </head>
 <body>
 <div class="shell">
@@ -22,11 +22,11 @@
 <main class="content">
 <section class="plot-panel" aria-label="Live spectrum">
 <div class="plot-header">
-<div class="plot-heading"><strong>LIVE RF SPECTRUM</strong><span id="capture-label">462.650 MHz center · 2.048 MS/s</span></div>
+<div class="plot-heading"><strong>LIVE RF SPECTRUM</strong><span id="capture-label">462.650 MHz center · 1.536 MS/s</span></div>
 <div class="zoom" aria-label="Spectrum zoom"><button id="zoom-full" class="selected" type="button" aria-pressed="true">FULL WINDOW</button><button id="zoom-gmrs" type="button" aria-pressed="false">GMRS 1–7</button></div>
 </div>
 <canvas id="spectrum-plot" width="1100" height="360" role="img" aria-label="Live measured spectrum and local noise floor"></canvas>
-<div class="plot-legend"><span class="trace-power">● RF power</span><span class="trace-noise">● Local noise floor</span><span class="marker-legend">┆ Channel centers</span><span id="range-label">461.800–463.500 MHz</span></div>
+<div class="plot-legend"><span class="trace-power">● RF power</span><span class="trace-noise">● Local noise floor</span><span class="marker-legend">┆ Channel centers</span><span id="range-label">462.000–463.300 MHz</span></div>
 </section>
 <aside class="insights" aria-label="Spectrum diagnostics">
 <div class="insight"><span class="insight-label">RECEIVER</span><strong id="receiver-state">IDLE</strong><small id="capture-age">No IQ samples yet</small></div>

@@ -18,7 +18,7 @@ from .playback import BufferedAudioPlayer
 
 CENTER_HZ = 462_650_000
 SAMPLE_RATE = 2_048_000
-READ_SIZE = 32_768
+READ_SIZE = 131_072  # 64 ms IQ blocks: amortize synchronous USB/Python overhead
 FFT_SIZE = 4096
 POINTS = 512
 # Deliberately use the center 1.7 MHz of the 2.048 MHz capture.
@@ -190,6 +190,9 @@ class SpectrumMonitor:
         last_iq_at = None
         max_iq_gap_ms = 0.0
         max_dsp_ms = 0.0
+        total_read_seconds = 0.0
+        total_processing_seconds = 0.0
+        processed_blocks = 0
         last_selection = {"status": "SEARCHING", "frequency_mhz": None}
         try:
             sdr = RtlSdr(0)
@@ -207,8 +210,10 @@ class SpectrumMonitor:
             started_at = time.monotonic()
             produced_samples = 0
             while not self._stop.is_set():
+                read_started = time.monotonic()
                 iq = sdr.read_samples(READ_SIZE)
                 now = time.monotonic()
+                total_read_seconds += now - read_started
                 produced_samples += len(iq)
                 if last_iq_at is not None:
                     max_iq_gap_ms = max(max_iq_gap_ms, (now - last_iq_at) * 1000.0)
@@ -245,6 +250,8 @@ class SpectrumMonitor:
                 max_dsp_ms = max(max_dsp_ms, (time.monotonic() - dsp_started) * 1000)
                 player.offer(pcm)
                 audio_error = player.error or audio_error
+                total_processing_seconds += time.monotonic() - now
+                processed_blocks += 1
                 self._audio_status = (
                     "ERROR: " + audio_error if audio_error
                     else "LOCAL NFM ACTIVE" if target_hz is not None
@@ -257,6 +264,9 @@ class SpectrumMonitor:
                     "max_iq_interval_ms": round(max_iq_gap_ms, 1),
                     "max_demod_ms": round(max_dsp_ms, 1),
                     "pcm_supply_ratio": round((produced_samples / SAMPLE_RATE) / elapsed, 3),
+                    "avg_iq_read_ms": round(total_read_seconds * 1000 / max(1, processed_blocks), 1),
+                    "avg_processing_ms": round(total_processing_seconds * 1000 / max(1, processed_blocks), 1),
+                    "iq_block_ms": round(READ_SIZE * 1000 / SAMPLE_RATE, 1),
                 }
         except Exception as exc:
             if not self._stop.is_set():

@@ -1,7 +1,7 @@
-"""S4: single-window FFT, GMRS candidate selection and in-window NFM audio.
+"""S4: fixed SDR capture, concurrent NFM audio and FFT analysis.
 
 No tuner hops or confirmed hit logs; audio is local rackio ALSA only.
-All SDR USB calls and streaming DSP belong to one worker thread.
+Only the capture worker accesses RTL-SDR. PCM and FFT run independently.
 """
 import queue
 import threading
@@ -17,12 +17,12 @@ from .audio import NfmDemodulator, silence
 from .playback import BufferedAudioPlayer
 
 CENTER_HZ = 462_650_000
-SAMPLE_RATE = 2_048_000
-READ_SIZE = 131_072  # 64 ms IQ blocks: amortize synchronous USB/Python overhead
+SAMPLE_RATE = 1_536_000
+READ_SIZE = 131_072  # 85.33 ms IQ at 1.536 MS/s
 FFT_SIZE = 4096
 POINTS = 512
-# Deliberately use the center 1.7 MHz of the 2.048 MHz capture.
-USABLE_HZ = 1_700_000
+# Preserve the center 1.3 MHz of the lower-rate IQ capture.
+USABLE_HZ = 1_300_000
 UPDATE_SECONDS = 0.35
 DEFAULT_THRESHOLD_DB = 15.0
 GMRS_CENTERS_HZ = tuple(462_562_500 + i * 25_000 for i in range(7))
@@ -64,21 +64,31 @@ def analyze(iq, return_bins=False):
 
 
 class SpectrumMonitor:
+    """Three independent workers: RTL I/O, NFM/PCM, and FFT/detection.
+
+    RTL I/O never demodulates or computes FFTs. No IQ blocks are intentionally
+    discarded except under measured overload; overloads are counted/reported.
+    """
+
     def __init__(self, callback):
         self.callback = callback
         self._stop = threading.Event()
+        self._threshold_changed = threading.Event()
         self.thread = None
-        self.error = None
+        self._audio_thread = None
+        self._fft_thread = None
+        self._audio_queue = queue.Queue(maxsize=12)
+        self._fft_queue = queue.Queue(maxsize=1)
         self.tracker = CandidateTracker()
         self.selector = SignalSelector()
         self.threshold_db = DEFAULT_THRESHOLD_DB
-        self._threshold_changed = threading.Event()
-        self._fft_queue = queue.Queue(maxsize=1)
-        self._fft_thread = None
+        self.error = None
         self._selection = {"status": "SEARCHING", "frequency_mhz": None}
         self._audio_status = "LOCAL AUDIO MUTED"
         self._audio_target_mhz = None
         self._audio_stats = {}
+        self._capture_stats = {}
+        self._discarded_iq = 0
 
     def set_threshold(self, threshold_db):
         value = float(threshold_db)
@@ -96,40 +106,49 @@ class SpectrumMonitor:
             return
         self._stop.clear()
         self.error = None
+        self._discarded_iq = 0
         self.tracker.reset()
         self.selector.reset()
-        self._threshold_changed.clear()
         self._selection = {"status": "SEARCHING", "frequency_mhz": None}
+        self._threshold_changed.clear()
+        self._audio_queue = queue.Queue(maxsize=12)
         self._fft_queue = queue.Queue(maxsize=1)
+        self._audio_thread = threading.Thread(target=self._audio_loop, daemon=True, name="sdrbox-demod")
         self._fft_thread = threading.Thread(target=self._fft_loop, daemon=True, name="spectrum-fft")
+        self._audio_thread.start()
         self._fft_thread.start()
-        self.thread = threading.Thread(target=self._run, daemon=True, name="spectrum-462")
+        self.thread = threading.Thread(target=self._run, daemon=True, name="sdrbox-usb")
         self.thread.start()
 
     def stop(self):
         self._stop.set()
-        if self.thread and self.thread is not threading.current_thread():
-            self.thread.join(timeout=3)
-            if self.thread.is_alive():
-                raise RuntimeError("RTL-SDR spectrum read did not stop within 3 seconds")
-        self.thread = None
-        if self._fft_thread is not None:
-            self._fft_thread.join(timeout=3)
-            if self._fft_thread.is_alive():
-                raise RuntimeError("FFT analysis worker did not stop")
-            self._fft_thread = None
+        for worker in (self.thread, self._fft_thread, self._audio_thread):
+            if worker is not None and worker is not threading.current_thread():
+                worker.join(timeout=3)
+                if worker.is_alive():
+                    raise RuntimeError(f"SDRbox {worker.name} did not stop in 3 seconds")
+        self.thread = self._fft_thread = self._audio_thread = None
+
+    @staticmethod
+    def _channel_candidates(candidates):
+        mapped = {}
+        for candidate in candidates:
+            hz = candidate["frequency_mhz"] * 1e6
+            center = min(GMRS_CENTERS_HZ, key=lambda x: abs(x - hz))
+            if abs(center - hz) > CHANNEL_TOLERANCE_HZ:
+                continue
+            item = dict(candidate)
+            item["peak_frequency_mhz"] = candidate["frequency_mhz"]
+            item["frequency_mhz"] = center / 1e6
+            if center not in mapped or item["contrast_db"] > mapped[center]["contrast_db"]:
+                mapped[center] = item
+        return list(mapped.values())
 
     def _fft_loop(self):
-        """Analyze a recent IQ sample without delaying capture or audio delivery.
-
-        A one-slot queue intentionally discards obsolete *visualization* frames.
-        It never discards or consumes audio samples, which remain exclusively
-        in the capture worker. Both workers only read immutable IQ arrays.
-        """
         try:
             while not self._stop.is_set():
                 try:
-                    iq = self._fft_queue.get(timeout=0.10)
+                    iq = self._fft_queue.get(timeout=0.1)
                 except queue.Empty:
                     continue
                 if self._threshold_changed.is_set():
@@ -138,145 +157,144 @@ class SpectrumMonitor:
                     self.selector.reset()
                     self._selection = {"status": "SEARCHING", "frequency_mhz": None}
                 result, power, floor = analyze(iq, return_bins=True)
-                candidates = detect_bins(
-                    power, floor, SAMPLE_RATE, CENTER_HZ,
-                    threshold_db=self.threshold_db,
-                )
-                tracked = self.tracker.update(candidates)
-                def channel_candidates(items):
-                    unique = {}
-                    for c in items:
-                        hz = c["frequency_mhz"] * 1e6
-                        center = min(GMRS_CENTERS_HZ, key=lambda ch: abs(ch - hz))
-                        if abs(center - hz) > CHANNEL_TOLERANCE_HZ:
-                            continue
-                        item = dict(c)
-                        item["peak_frequency_mhz"] = c["frequency_mhz"]
-                        item["frequency_mhz"] = center / 1e6
-                        if center not in unique or item["contrast_db"] > unique[center]["contrast_db"]:
-                            unique[center] = item
-                    return list(unique.values())
-                eligible = channel_candidates(tracked)
-                weaker = detect_bins(
-                    power, floor, SAMPLE_RATE, CENTER_HZ,
-                    threshold_db=max(5.0, self.threshold_db - 5.0),
-                )
+                detected = detect_bins(power, floor, SAMPLE_RATE, CENTER_HZ, self.threshold_db)
+                tracked = self.tracker.update(detected)
+                hold = detect_bins(power, floor, SAMPLE_RATE, CENTER_HZ,
+                                   max(5.0, self.threshold_db - 5.0))
                 selection = self.selector.update(
-                    eligible, time.monotonic(), hold_candidates=channel_candidates(weaker)
+                    self._channel_candidates(tracked), time.monotonic(),
+                    hold_candidates=self._channel_candidates(hold),
                 )
                 self._selection = selection
-                result["candidates"] = tracked
-                result["selection"] = dict(selection)
-                result["candidate_threshold_db"] = self.threshold_db
-                result["candidate_method"] = "local_contrast_2_of_3_gmrs_selection"
-                result["audio"] = self._audio_status
-                result["audio_frequency_mhz"] = self._audio_target_mhz
-                result["audio_gate"] = "OPEN" if self._audio_target_mhz is not None else "CLOSED"
-                result["selection"]["audio_active"] = self._audio_target_mhz is not None
-                result["selection"]["audio_hold"] = selection["status"] == "HANG"
-                result["audio_diagnostics"] = dict(self._audio_stats)
+                result.update(
+                    candidates=tracked,
+                    selection={**selection,
+                               "audio_active": self._audio_target_mhz is not None,
+                               "audio_hold": selection["status"] == "HANG"},
+                    candidate_threshold_db=self.threshold_db,
+                    candidate_method="local_contrast_2_of_3_gmrs_selection",
+                    audio=self._audio_status,
+                    audio_frequency_mhz=self._audio_target_mhz,
+                    audio_gate="OPEN" if self._audio_target_mhz is not None else "CLOSED",
+                    audio_diagnostics={**self._audio_stats, **self._capture_stats},
+                )
                 self.callback("spectrum", result)
         except Exception as exc:
-            if not self._stop.is_set():
-                self.error = f"FFT analysis: {type(exc).__name__}: {exc}"
-                self.callback("spectrum_error", self.error)
-                self._stop.set()
+            self._failure("FFT", exc)
 
-    def _run(self):
-        sdr = None
-        player = BufferedAudioPlayer()
+    def _audio_loop(self):
         demod = NfmDemodulator()
+        player = BufferedAudioPlayer()
         audio_error = None
-        last_iq_at = None
-        max_iq_gap_ms = 0.0
-        max_dsp_ms = 0.0
-        total_read_seconds = 0.0
+        processed_samples = 0
         total_processing_seconds = 0.0
-        processed_blocks = 0
-        last_selection = {"status": "SEARCHING", "frequency_mhz": None}
+        count = 0
+        max_demod_ms = 0.0
         try:
-            sdr = RtlSdr(0)
-            sdr.sample_rate = SAMPLE_RATE
-            sdr.center_freq = CENTER_HZ
-            sdr.gain = 30
-            # The PCM writer has its own queue/thread: ALSA pipe backpressure
-            # must not stall USB capture or the time-critical demod path.
             try:
                 player.start()
             except OSError as exc:
                 audio_error = f"Cannot start aplay: {exc}"
-            sdr.read_samples(READ_SIZE)  # discard unsteady initial samples
-            last_fft = 0.0
-            started_at = time.monotonic()
-            produced_samples = 0
             while not self._stop.is_set():
-                read_started = time.monotonic()
-                iq = sdr.read_samples(READ_SIZE)
-                now = time.monotonic()
-                total_read_seconds += now - read_started
-                produced_samples += len(iq)
-                if last_iq_at is not None:
-                    max_iq_gap_ms = max(max_iq_gap_ms, (now - last_iq_at) * 1000.0)
-                last_iq_at = now
-                if now - last_fft >= UPDATE_SECONDS:
-                    # Sending to FFT is nonblocking: stale display frames can
-                    # be skipped, but USB and PCM must never wait for an FFT.
-                    try:
-                        self._fft_queue.put_nowait(iq)
-                    except queue.Full:
-                        pass
-                    last_fft = now
-                last_selection = self._selection
-                # Keep demodulation running through a short RF fade while
-                # the selector is in HANG. The 1.2 s timeout still ends
-                # the selection and mutes local audio on real release.
-                audio_active = last_selection["status"] in ("SELECTED", "HANG")
-                selected_mhz = last_selection.get("frequency_mhz")
+                try:
+                    iq = self._audio_queue.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+                began = time.monotonic()
+                selection = self._selection
                 target_hz = None
-                if audio_active and selected_mhz is not None:
+                if selection["status"] in ("SELECTED", "HANG") and selection.get("frequency_mhz") is not None:
                     target_hz = min(
                         GMRS_CENTERS_HZ,
-                        key=lambda hz: abs(hz - selected_mhz * 1e6),
+                        key=lambda hz: abs(hz - selection["frequency_mhz"] * 1e6),
                     )
-                # The capture worker never waits for ALSA writes. Record how
-                # much time DSP itself consumes for comparison against 16ms IQ.
-                dsp_started = time.monotonic()
                 if target_hz is None:
                     demod.reset()
                     pcm = silence(len(iq))
                 else:
                     demod.tune(target_hz, CENTER_HZ, len(iq))
                     pcm = demod.demodulate(iq)
-                max_dsp_ms = max(max_dsp_ms, (time.monotonic() - dsp_started) * 1000)
+                elapsed = time.monotonic() - began
+                max_demod_ms = max(max_demod_ms, elapsed * 1000)
+                total_processing_seconds += elapsed
+                processed_samples += len(iq)
+                count += 1
                 player.offer(pcm)
                 audio_error = player.error or audio_error
-                total_processing_seconds += time.monotonic() - now
-                processed_blocks += 1
                 self._audio_status = (
                     "ERROR: " + audio_error if audio_error
                     else "LOCAL NFM ACTIVE" if target_hz is not None
                     else "LOCAL AUDIO MUTED"
                 )
                 self._audio_target_mhz = target_hz / 1e6 if target_hz is not None and not audio_error else None
-                elapsed = max(0.001, time.monotonic() - started_at)
                 self._audio_stats = {
                     **player.stats(),
-                    "max_iq_interval_ms": round(max_iq_gap_ms, 1),
-                    "max_demod_ms": round(max_dsp_ms, 1),
-                    "pcm_supply_ratio": round((produced_samples / SAMPLE_RATE) / elapsed, 3),
-                    "avg_iq_read_ms": round(total_read_seconds * 1000 / max(1, processed_blocks), 1),
-                    "avg_processing_ms": round(total_processing_seconds * 1000 / max(1, processed_blocks), 1),
-                    "iq_block_ms": round(READ_SIZE * 1000 / SAMPLE_RATE, 1),
+                    "max_demod_ms": round(max_demod_ms, 1),
+                    "avg_processing_ms": round(total_processing_seconds * 1000 / count, 1),
+                    "iq_audio_queue_ms": round(self._audio_queue.qsize() * READ_SIZE * 1000 / SAMPLE_RATE, 1),
                 }
         except Exception as exc:
-            if not self._stop.is_set():
-                self.error = f"{type(exc).__name__}: {exc}"
-                self.callback("spectrum_error", self.error)
+            self._failure("audio", exc)
+        finally:
+            player.stop()
+
+    def _run(self):
+        sdr = None
+        total_read_seconds = 0.0
+        count = 0
+        samples = 0
+        max_iq_gap_ms = 0.0
+        last_read = None
+        try:
+            sdr = RtlSdr(0)
+            sdr.sample_rate = SAMPLE_RATE
+            sdr.center_freq = CENTER_HZ
+            sdr.gain = 30
+            sdr.read_samples(READ_SIZE)  # discard tuner settling
+            started = time.monotonic()
+            last_fft = 0.0
+            while not self._stop.is_set():
+                begin = time.monotonic()
+                iq = sdr.read_samples(READ_SIZE)
+                now = time.monotonic()
+                if last_read is not None:
+                    max_iq_gap_ms = max(max_iq_gap_ms, (now - last_read) * 1000)
+                last_read = now
+                total_read_seconds += now - begin
+                count += 1
+                samples += len(iq)
+                # The USB worker must not block waiting on audio DSP.
+                try:
+                    self._audio_queue.put_nowait(iq)
+                except queue.Full:
+                    # Losing a voice block is an error; report every loss.
+                    self._discarded_iq += 1
+                if now - last_fft >= UPDATE_SECONDS:
+                    try:
+                        self._fft_queue.put_nowait(iq)
+                    except queue.Full:
+                        pass  # stale FFT snapshots may be omitted
+                    last_fft = now
+                elapsed = max(time.monotonic() - started, 0.001)
+                self._capture_stats = {
+                    "pcm_supply_ratio": round((samples / SAMPLE_RATE) / elapsed, 3),
+                    "avg_iq_read_ms": round(total_read_seconds * 1000 / count, 1),
+                    "max_iq_interval_ms": round(max_iq_gap_ms, 1),
+                    "iq_block_ms": round(READ_SIZE * 1000 / SAMPLE_RATE, 1),
+                    "iq_dropped_blocks": self._discarded_iq,
+                }
+        except Exception as exc:
+            self._failure("RTL-SDR", exc)
         finally:
             self._stop.set()
-            player.stop()
             if sdr is not None:
                 try:
                     sdr.close()
                 except Exception:
                     pass
+
+    def _failure(self, stage, exc):
+        if not self._stop.is_set():
+            self.error = f"{stage}: {type(exc).__name__}: {exc}"
+            self.callback("spectrum_error", self.error)
+            self._stop.set()

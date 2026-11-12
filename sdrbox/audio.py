@@ -14,7 +14,6 @@ DECIMATE = RF_RATE // MIX_RATE  # 32
 
 class NfmDemodulator:
     def __init__(self):
-        self._n = None
         self._osc = None
         self._block_step = None
         self._block_phase = 1.0 + 0j

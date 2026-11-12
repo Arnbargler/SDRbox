@@ -89,7 +89,7 @@ function render(s){
  $("sensitivity-value").textContent="+"+(s.threshold_db ?? 15)+" dB";
  $("audio-status").textContent=s.audio?.startsWith("ERROR:")?"ERROR":s.audio?.includes("ACTIVE")?"RECEIVING":s.audio?.includes("STOPPED")?"STOPPED":"MUTED";
  const diag=s.spectrum?.audio_diagnostics;
- $("audio-detail").title=diag ? "IQ supply "+diag.pcm_supply_ratio+"x; block "+diag.iq_block_ms+"ms; read "+diag.avg_iq_read_ms+"ms; DSP "+diag.avg_processing_ms+"ms; IQ queue "+diag.iq_audio_queue_ms+"ms; IQ lost "+diag.iq_dropped_blocks+"; peak read interval "+diag.max_iq_interval_ms+"ms; peak demod "+diag.max_demod_ms+"ms; ALSA queue "+diag.queued_ms+"ms; PCM drops "+diag.dropped_chunks : "";
+ $("audio-detail").title=diag ? "IQ supply "+diag.pcm_supply_ratio+"x; block "+diag.iq_block_ms+"ms; USB read "+diag.avg_iq_read_ms+"ms; audio DSP "+diag.avg_processing_ms+"ms (cumulative average); IQ queue "+diag.iq_audio_queue_ms+"ms; IQ lost "+diag.iq_dropped_blocks+"; PCM queue "+diag.queued_ms+"ms; PCM drops "+diag.dropped_chunks : "";
  $("audio-detail").textContent=s.audio?.startsWith("ERROR:")?s.audio:
    diag && s.spectrum?.audio_gate
    ? "Gate "+s.spectrum.audio_gate+" · "+diag.pcm_supply_ratio+"x · R"+diag.avg_iq_read_ms+" P"+diag.avg_processing_ms+" · lost "+diag.iq_dropped_blocks

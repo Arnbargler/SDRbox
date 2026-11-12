@@ -4,7 +4,6 @@ PCM is 24 kHz signed 16-bit mono. One bounded queue absorbs short producer
 jitter; the writer alone owns aplay stdin. Overlong writer stalls never block
 USB reads. Statistics are diagnostic, not audio hardware timestamps.
 """
-from collections import deque
 import queue
 import subprocess
 import threading
@@ -28,12 +27,8 @@ class BufferedAudioPlayer:
         self.error = None
         self.sent_chunks = 0
         self.dropped_chunks = 0
-        self.writer_gap_max_ms = 0.0
-        self.writes_blocked = 0
-        self._last_written = None
         self._chunk_ms = 16.0
         self._lock = threading.Lock()
-        self._stderr_tail = deque(maxlen=5)
 
     def start(self):
         if self.writer is not None:
@@ -79,8 +74,6 @@ class BufferedAudioPlayer:
                 "queued_ms": round(self.queue.qsize() * self._chunk_ms, 0),
                 "written_chunks": self.sent_chunks,
                 "dropped_chunks": self.dropped_chunks,
-                "max_writer_gap_ms": round(self.writer_gap_max_ms, 1),
-                "slow_writes": self.writes_blocked,
                 "error": self.error,
             }
 
@@ -100,21 +93,7 @@ class BufferedAudioPlayer:
                         raise RuntimeError(f"aplay exited: {self.process.returncode}")
                     continue
                 try:
-                    now = time.monotonic()
-                    if self._last_written is not None:
-                        with self._lock:
-                            self.writer_gap_max_ms = max(
-                                self.writer_gap_max_ms,
-                                (now - self._last_written) * 1000,
-                            )
-                    started = time.monotonic()
                     self.process.stdin.write(chunk)
-                    duration = time.monotonic() - started
-                    with self._lock:
-                        self.sent_chunks += 1
-                        if duration > 0.04:
-                            self.writes_blocked += 1
-                    self._last_written = time.monotonic()
                 finally:
                     self.queue.task_done()
         except (OSError, ValueError, RuntimeError) as exc:

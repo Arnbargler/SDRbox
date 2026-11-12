@@ -186,10 +186,8 @@ class SpectrumMonitor:
         demod = NfmDemodulator()
         player = BufferedAudioPlayer()
         audio_error = None
-        processed_samples = 0
         total_processing_seconds = 0.0
         count = 0
-        max_demod_ms = 0.0
         try:
             try:
                 player.start()
@@ -215,9 +213,7 @@ class SpectrumMonitor:
                     demod.tune(target_hz, CENTER_HZ, len(iq))
                     pcm = demod.demodulate(iq)
                 elapsed = time.monotonic() - began
-                max_demod_ms = max(max_demod_ms, elapsed * 1000)
                 total_processing_seconds += elapsed
-                processed_samples += len(iq)
                 count += 1
                 player.offer(pcm)
                 audio_error = player.error or audio_error
@@ -229,7 +225,6 @@ class SpectrumMonitor:
                 self._audio_target_mhz = target_hz / 1e6 if target_hz is not None and not audio_error else None
                 self._audio_stats = {
                     **player.stats(),
-                    "max_demod_ms": round(max_demod_ms, 1),
                     "avg_processing_ms": round(total_processing_seconds * 1000 / count, 1),
                     "iq_audio_queue_ms": round(self._audio_queue.qsize() * READ_SIZE * 1000 / SAMPLE_RATE, 1),
                 }
@@ -243,8 +238,6 @@ class SpectrumMonitor:
         total_read_seconds = 0.0
         count = 0
         samples = 0
-        max_iq_gap_ms = 0.0
-        last_read = None
         try:
             sdr = RtlSdr(0)
             sdr.sample_rate = SAMPLE_RATE
@@ -257,9 +250,6 @@ class SpectrumMonitor:
                 begin = time.monotonic()
                 iq = sdr.read_samples(READ_SIZE)
                 now = time.monotonic()
-                if last_read is not None:
-                    max_iq_gap_ms = max(max_iq_gap_ms, (now - last_read) * 1000)
-                last_read = now
                 total_read_seconds += now - begin
                 count += 1
                 samples += len(iq)
@@ -279,7 +269,6 @@ class SpectrumMonitor:
                 self._capture_stats = {
                     "pcm_supply_ratio": round((samples / SAMPLE_RATE) / elapsed, 3),
                     "avg_iq_read_ms": round(total_read_seconds * 1000 / count, 1),
-                    "max_iq_interval_ms": round(max_iq_gap_ms, 1),
                     "iq_block_ms": round(READ_SIZE * 1000 / SAMPLE_RATE, 1),
                     "iq_dropped_blocks": self._discarded_iq,
                 }

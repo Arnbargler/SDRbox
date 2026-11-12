@@ -9,11 +9,12 @@ import numpy as np
 from scipy.ndimage import binary_closing, label
 
 OPEN_DB = 10.0                  # experimental contrast above local floor
-MIN_WIDTH_BINS = 3              # 3 x 500 Hz at 4096 FFT / 2.048 MS/s
+MIN_WIDTH_BINS = 3              # three adjacent bins at the active FFT resolution
 MAX_WIDTH_HZ = 45_000          # wideband interference not an NFM candidate
 MAX_CANDIDATES = 8
 DC_GUARD_HZ = 12_000
 EDGE_GUARD_HZ = 35_000
+USABLE_HALF_WIDTH_HZ = 650_000  # matches displayed 1.3 MHz FFT crop
 MATCH_HZ = 8_000
 STABLE_FRAMES = 2               # seen in two of latest three FFT updates
 HISTORY_FRAMES = 3
@@ -31,7 +32,7 @@ def detect_bins(power_db, floor_db, sample_rate_hz, center_hz, threshold_db=OPEN
     n = len(power)
     resolution = sample_rate_hz / n
     offsets = (np.arange(n) - n // 2) * resolution
-    usable = (np.abs(offsets) <= 850_000 - EDGE_GUARD_HZ) & (np.abs(offsets) >= DC_GUARD_HZ)
+    usable = (np.abs(offsets) <= USABLE_HALF_WIDTH_HZ - EDGE_GUARD_HZ) & (np.abs(offsets) >= DC_GUARD_HZ)
     contrast = power - floor
     above = usable & np.isfinite(contrast) & (contrast >= threshold_db)
     # Join only one-bin gaps between elevated bins; longer gaps split signals.

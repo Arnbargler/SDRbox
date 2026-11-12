@@ -1,8 +1,9 @@
-"""S3 diagnostic: single-window FFT spectrum, candidates and stable selection.
+"""S4: single-window FFT, GMRS candidate selection and in-window NFM audio.
 
-No demodulation, activity events, hit logs, automatic tuning or playback.
-All USB access belongs to one worker thread, as in persistent.py.
+No tuner hops or confirmed hit logs; audio is local rackio ALSA only.
+All SDR USB calls and streaming DSP belong to one worker thread.
 """
+import subprocess
 import threading
 import time
 
@@ -12,6 +13,7 @@ from rtlsdr import RtlSdr
 
 from .detector import CandidateTracker, detect_bins
 from .selector import SignalSelector
+from .audio import NfmDemodulator, silence
 
 CENTER_HZ = 462_650_000
 SAMPLE_RATE = 2_048_000
@@ -21,6 +23,11 @@ POINTS = 512
 # Deliberately use the center 1.7 MHz of the 2.048 MHz capture.
 USABLE_HZ = 1_700_000
 UPDATE_SECONDS = 0.35
+DEFAULT_THRESHOLD_DB = 15.0
+GMRS_CENTERS_HZ = tuple(462_562_500 + i * 25_000 for i in range(7))
+# Stay within established GMRS channel centers, not arbitrary neighboring peaks.
+CHANNEL_TOLERANCE_HZ = 9_000
+
 
 
 def analyze(iq, return_bins=False):
@@ -63,6 +70,15 @@ class SpectrumMonitor:
         self.error = None
         self.tracker = CandidateTracker()
         self.selector = SignalSelector()
+        self.threshold_db = DEFAULT_THRESHOLD_DB
+        self._threshold_changed = threading.Event()
+
+    def set_threshold(self, threshold_db):
+        value = float(threshold_db)
+        if not 8.0 <= value <= 30.0:
+            raise ValueError("Minimum RF contrast must be 8–30 dB")
+        self.threshold_db = value
+        self._threshold_changed.set()
 
     @property
     def running(self):
@@ -75,6 +91,7 @@ class SpectrumMonitor:
         self.error = None
         self.tracker.reset()
         self.selector.reset()
+        self._threshold_changed.clear()
         self.thread = threading.Thread(target=self._run, daemon=True, name="spectrum-462")
         self.thread.start()
 
@@ -88,33 +105,114 @@ class SpectrumMonitor:
 
     def _run(self):
         sdr = None
+        player = None
+        demod = NfmDemodulator()
+        audio_error = None
+        last_selection = {"status": "SEARCHING", "frequency_mhz": None}
         try:
             sdr = RtlSdr(0)
             sdr.sample_rate = SAMPLE_RATE
             sdr.center_freq = CENTER_HZ
             sdr.gain = 30
-            # Discard the initial buffer while the tuner settles.
-            sdr.read_samples(READ_SIZE)
-            last = 0
+            # Local speaker output, independent of browser sessions.
+            # Keep ALSA clock fed with silence when not receiving, avoiding
+            # expensive/repeated process starts and underruns on lock changes.
+            try:
+                player = subprocess.Popen(
+                    ["aplay", "-q", "-r", "24000", "-f", "S16_LE", "-c", "1"],
+                    stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE, bufsize=0,
+                )
+            except OSError as exc:
+                audio_error = f"Cannot start aplay: {exc}"
+            sdr.read_samples(READ_SIZE)  # discard unsteady initial samples
+            last_fft = 0.0
             while not self._stop.is_set():
                 iq = sdr.read_samples(READ_SIZE)
-                if time.monotonic() - last < UPDATE_SECONDS:
-                    continue
-                # Reuse the SAME averaged FFT and local floor for spectrum and
-                # detection; do not double the CPU load each refresh.
-                result, power, floor = analyze(iq, return_bins=True)
-                candidates = detect_bins(power, floor, SAMPLE_RATE, CENTER_HZ)
-                result["candidates"] = self.tracker.update(candidates)
-                result["selection"] = self.selector.update(result["candidates"], time.monotonic())
-                result["candidate_threshold_db"] = 10.0
-                result["candidate_method"] = "experimental_fft_contrast_2_of_3"
-                self.callback("spectrum", result)
-                last = time.monotonic()
+                now = time.monotonic()
+                if self._threshold_changed.is_set():
+                    self._threshold_changed.clear()
+                    self.tracker.reset()
+                    self.selector.reset()
+                    demod.reset()
+                    last_selection = {"status": "SEARCHING", "frequency_mhz": None}
+                if now - last_fft >= UPDATE_SECONDS:
+                    # FFT + detector reuse the SAME measured averaged spectrum.
+                    result, power, floor = analyze(iq, return_bins=True)
+                    candidates = detect_bins(
+                        power, floor, SAMPLE_RATE, CENTER_HZ,
+                        threshold_db=self.threshold_db,
+                    )
+                    tracked = self.tracker.update(candidates)
+                    # Show every RF candidate on FFT, but select/listen only
+                    # near actual GMRS 1–7 channel centers in this S4 milestone.
+                    eligible = [
+                        c for c in tracked
+                        if min(abs(c["frequency_mhz"] * 1e6 - hz)
+                               for hz in GMRS_CENTERS_HZ) <= CHANNEL_TOLERANCE_HZ
+                    ]
+                    last_selection = self.selector.update(eligible, now)
+                    result["candidates"] = tracked
+                    result["selection"] = last_selection
+                    result["candidate_threshold_db"] = self.threshold_db
+                    result["candidate_method"] = "local_contrast_2_of_3_gmrs_selection"
+                    last_fft = now
+                else:
+                    result = None
+
+                audio_active = last_selection["status"] == "SELECTED"
+                selected_mhz = last_selection.get("frequency_mhz")
+                target_hz = None
+                if audio_active and selected_mhz is not None:
+                    target_hz = min(
+                        GMRS_CENTERS_HZ,
+                        key=lambda hz: abs(hz - selected_mhz * 1e6),
+                    )
+                if player is not None and audio_error is None:
+                    if player.poll() is not None:
+                        audio_error = f"aplay exited: {player.returncode}"
+                    else:
+                        try:
+                            if target_hz is None:
+                                demod.reset()
+                                pcm = silence(len(iq))
+                            else:
+                                demod.tune(target_hz, CENTER_HZ, len(iq))
+                                pcm = demod.demodulate(iq)
+                            player.stdin.write(pcm.tobytes())
+                        except (OSError, BrokenPipeError) as exc:
+                            audio_error = f"Local PCM write failed: {exc}"
+                if result is not None:
+                    result["audio"] = (
+                        "ERROR: " + audio_error if audio_error
+                        else "LOCAL NFM ACTIVE" if target_hz is not None
+                        else "LOCAL AUDIO MUTED"
+                    )
+                    result["audio_frequency_mhz"] = (
+                        target_hz / 1e6 if target_hz is not None and not audio_error
+                        else None
+                    )
+                    result["selection"]["audio_active"] = bool(target_hz is not None and not audio_error)
+                    self.callback("spectrum", result)
         except Exception as exc:
             if not self._stop.is_set():
                 self.error = f"{type(exc).__name__}: {exc}"
                 self.callback("spectrum_error", self.error)
         finally:
+            if player is not None:
+                try:
+                    player.stdin.close()
+                except (OSError, ValueError):
+                    pass
+                if player.poll() is None:
+                    player.terminate()
+                try:
+                    player.wait(timeout=1.0)
+                except subprocess.TimeoutExpired:
+                    player.kill()
+                    player.wait(timeout=1.0)
+                if player.stderr is not None:
+                    player.stderr.close()
             if sdr is not None:
                 try:
                     sdr.close()

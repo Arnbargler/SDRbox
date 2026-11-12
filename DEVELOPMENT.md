@@ -104,3 +104,7 @@ Dell specs; active XRandR monitor identity after removal; single-panel touch; ac
 ## Live GMRS proof of reception — 2026-11-11
 
 **Passed on actual rackio hardware:** `rtl_fm -d 0 -f 462562500 -M fm -s 24000 -r 24000 -g 30 -l 0 | aplay -r 24000 -f S16_LE -c 1` produced intelligible walkie-talkie audio from GMRS Channel 1 (462.5625 MHz) on rackio's speakers. Slight delay observed; defer latency tuning until integrated. Next engineering task: supervised subprocess adapter for rtl_fm + local playback; expose real receiver status to existing FastAPI/web UI; retain simulator fallback, then implement channel scanning and squelch. No remote browser audio.
+
+## v0.2 initial integration — 2026-11-11
+
+Committed live GMRS Channel 1 fixed-frequency receiver using supervised `rtl_fm` → `aplay` child processes, invoked by existing API SCAN/STOP and heard through rackio-local audio only. HOLD retains live reception; SKIP and other banks disabled until multi-channel support. WebSocket state is shared across local and remote browsers. No RF-derived meter, squelch or real activity logging yet; simulated backend remains selectable with `SDRBOX_RECEIVER=sim`. **Awaiting first rackio field test**, not yet verified running in user hardware. See [RUNNING.md](RUNNING.md).

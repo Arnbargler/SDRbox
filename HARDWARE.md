@@ -104,3 +104,15 @@ Reattached kernel driver
 ```
 
 **Interpretation:** USB device and R820T tuner were successfully enumerated; 29 gain values from 0–49.6 dB were reported. The selected test sample rate was 2.048 MS/s; this line alone is **not** proof of sustained clean IQ capture. The `-t` option runs an E4000-specific test, so the “No E4000 tuner found” message is expected for an R820T device. A one-off PLL warning is not conclusive; investigate only if repeated when tuning real frequencies. Device released/re-attached the kernel driver on exit. Earlier working GQRX reception is useful independent evidence; live GMRS/NFM reception from SDRbox itself is not yet implemented.
+
+
+## Live GMRS audio received — 2026-11-11
+
+**User verified** intelligible walkie-talkie speech on GMRS Channel 1 (462.5625 MHz) with rackio's local audio output using:
+
+```bash
+rtl_fm -d 0 -f 462562500 -M fm -s 24000 -r 24000 -g 30 -l 0 | \
+  aplay -r 24000 -f S16_LE -c 1
+```
+
+This established RTL-SDR USB access, NFM reception and local ALSA playback, independently of SDRbox. User observed slight latency; earlier GQRX experiments showed it could be reduced with different sampling settings. In this pipeline audio rate is 24 kHz; latency also depends on command buffers and demodulation settings. **Do not confuse this standalone test with an implemented SDRbox live backend.**

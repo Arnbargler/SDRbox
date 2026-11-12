@@ -97,3 +97,7 @@ Native rtl_fm scan of GMRS 1–7 added, using multiple `-f`, configurable `-l` t
 ## v0.4 candidate (awaiting rackio field test)
 
 Python managed scan module `sdrbox/scanner.py` coordinates GMRS 1–7 single-frequency rtl_fm children, reading squelched PCM to infer activity and broadcasting actual commanded tune, hit events and HOLD/SKIP. UI INFO profile `MANAGED_1_7` is default. Legacy native rtl_fm hopping remains selectable (`SCAN_1_7`) and already field-proven; fixed Channel 1 also retained. Python scheduler restarts rtl_fm per channel, potentially high latency; improve only after actual testing. No browser audio.
+
+## Managed scanner known issue (2026-11-11)
+
+v0.4 Python scanner advances at ~1 channel/s, and activity detection/audio on CH1 confirmed. It initially stuck receiving after PTT release until SKIP. Follow-up fix changes `scanner.py` to evaluate 1.1-second hang timeout even when no new PCM arrives (closed rtl_fm squelch might produce no chunks). **Not yet verified after fix.** Test auto resume first; if still stuck, inspect idle PCM/noise before altering squelch sensitivity.

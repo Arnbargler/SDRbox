@@ -6,9 +6,9 @@ is mixed and filtered digitally. PCM is 24 kHz mono signed 16-bit for aplay.
 import numpy as np
 from scipy.signal import butter, resample_poly, sosfilt
 
-RF_RATE = 2_048_000
+RF_RATE = 1_536_000
 AUDIO_RATE = 24_000
-MIX_RATE = 64_000
+MIX_RATE = 48_000
 DECIMATE = RF_RATE // MIX_RATE  # 32
 
 
@@ -54,10 +54,10 @@ class NfmDemodulator:
         discriminator = np.angle(reduced * np.conj(prev)).astype(np.float32)
         self._previous = reduced[-1]
         voice, self._zi = sosfilt(self._sos, discriminator, zi=self._zi)
-        audio = resample_poly(voice, 3, 8)  # 64 kHz -> 24 kHz
+        audio = resample_poly(voice, 1, 2)  # 48 kHz -> 24 kHz
         return np.clip(audio * 25000, -32767, 32767).astype(np.int16)
 
 
 def silence(sample_count):
-    # 2.048 MHz IQ -> 24 kHz PCM; exactly 384 samples for 32768 IQ.
+    # 1.536 MHz IQ -> 24 kHz PCM; exactly 2048 samples for 131072 IQ.
     return np.zeros(round(sample_count * AUDIO_RATE / RF_RATE), dtype=np.int16)

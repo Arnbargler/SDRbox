@@ -36,3 +36,6 @@ POST `/api/v1/commands`: `{"command":"set_sensitivity","threshold_db":15}` (valu
 ## Sample supply diagnostic
 
 `spectrum.audio_diagnostics.pcm_supply_ratio` is `(IQ samples processed / 2048000) / elapsed_monotonic_seconds` since starting SDR capture (startup settling buffer excluded). Around 1.00 means the capture loop processes approximately real-time audio sample count; a sustained lower ratio indicates PCM production cannot match wall clock. Unlike max IQ gap, this is an average throughput metric. FFT analysis and the S2/S3 selector now run on a separate worker using the latest IQ frame from a queue of capacity one. The capture worker does not block on FFT. S4 display shows `rate <ratio>x · Q <ms> · drop <count>`.
+
+## Throughput diagnostics update
+The receiver now reads 131072 IQ samples (64ms nominal at 2.048MS/s) per synchronous RTL USB call; NFM PCM is 1536 samples (64ms at 24kHz) per block. `spectrum.audio_diagnostics` includes `iq_block_ms` (64), `avg_iq_read_ms`, `avg_processing_ms`, `max_iq_interval_ms`, `max_demod_ms`, `pcm_supply_ratio`, queued_ms, dropped_chunks and writer timing. The UI shows `rate x · R.. P..ms` (R average read, P average processing), with other metrics in the audio detail tooltip. Experimental diagnostics for periodic audio starvation and still awaiting hardware test.

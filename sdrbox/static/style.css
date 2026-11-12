@@ -14,3 +14,12 @@
 .selected-signal .insight-label{display:flex;justify-content:space-between;gap:4px}
 #selection-status{color:#73ddfc;font-size:9px;font-weight:850}
 .selected-signal small{color:#a7cbd4}
+
+/* S4: sensitivity is a minimum contrast threshold, not RTL gain. */
+.sensitivity{width:197px;min-width:165px;display:flex;flex-direction:column;gap:2px;color:#94b3a0;font-size:9px;font-weight:800;letter-spacing:.45px}
+.sensitivity span{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.sensitivity strong{color:#c5fbd2;font-size:11px;font-variant-numeric:tabular-nums}
+.sensitivity input{width:100%;height:19px;accent-color:#83eab0;margin:0;cursor:pointer}
+.sensitivity input:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:1100px){.bottom-note{display:none}}
+@media(max-width:800px){.sensitivity{width:175px;min-width:140px}}

@@ -12,7 +12,7 @@
   <div class="shell">
     <header>
       <div class="brand"><span class="brand-mark">◉</span> SDR<span>BOX</span> <small>RECEIVER CONTROL</small></div>
-      <div class="head-right"><strong class="demo">SIMULATION · NO RF</strong><span id="connection" class="offline">CONNECTING</span></div>
+      <div class="head-right"><strong id="mode-badge" class="demo">CONNECTING</strong><span id="connection" class="offline">CONNECTING</span></div>
     </header>
     <main>
       <section class="banks" aria-label="Scan banks">
@@ -27,11 +27,11 @@
           <div class="eyebrow">ACTIVE RECEIVER <span id="status">STOPPED</span></div>
           <div class="frequency"><span id="frequency">---.----</span><span class="unit">MHz</span></div>
           <div class="channel"><span id="channel">NO CHANNEL</span><span id="modulation">NFM</span></div>
-          <div class="signal-header"><span>SIGNAL</span><span id="signal-value">0% (DEMO)</span></div>
+          <div class="signal-header"><span>SIGNAL</span><span id="signal-value">NOT MEASURED</span></div>
           <div class="signal"><div id="signal-bar"></div></div>
         </section>
         <section class="activity panel">
-          <div class="eyebrow">RECENT ACTIVITY <span>DEMO DATA ONLY</span></div>
+          <div class="eyebrow">RECENT ACTIVITY <span id="activity-label">NO DETECTION YET</span></div>
           <div id="hits" class="hits"><p class="empty">No simulated activity yet.</p></div>
         </section>
       </div>
@@ -43,12 +43,12 @@
         <div id="message" class="message" role="status">Connecting to SDRbox…</div>
       </div>
     </main>
-    <footer><span id="device">SIMULATOR</span><span>LOCAL AUDIO: NOT ENABLED · LAN CONTROL ONLY</span></footer>
+    <footer><span id="device">SIMULATOR</span><span id="audio">AUDIO: CONNECTING</span></footer>
   </div>
   <dialog id="info">
-    <h2>SDRbox v0.1 · simulation</h2>
-    <p>All tuning, signal readings and recent hits are simulated. No RTL-SDR is opened and no audio is produced yet.</p>
-    <p>GMRS is our first live RF target. CB, AIR, AMB and FIRE are UI placeholders.</p>
+    <h2>SDRbox v0.2</h2>
+    <p id="info-mode">Connecting…</p>
+    <p>In live mode, SCAN starts GMRS Channel 1 fixed-frequency reception on rackio speakers. HOLD keeps listening on that frequency; STOP releases the SDR. SKIP and other bands are deferred.</p>
     <button id="close-info">CLOSE</button>
   </dialog>
 </body>

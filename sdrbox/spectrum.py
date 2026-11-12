@@ -1,4 +1,4 @@
-"""S2 diagnostic: single-window FFT spectrum and experimental RF candidates.
+"""S3 diagnostic: single-window FFT spectrum, candidates and stable selection.
 
 No demodulation, activity events, hit logs, automatic tuning or playback.
 All USB access belongs to one worker thread, as in persistent.py.
@@ -11,6 +11,7 @@ from scipy.ndimage import percentile_filter
 from rtlsdr import RtlSdr
 
 from .detector import CandidateTracker, detect_bins
+from .selector import SignalSelector
 
 CENTER_HZ = 462_650_000
 SAMPLE_RATE = 2_048_000
@@ -61,6 +62,7 @@ class SpectrumMonitor:
         self.thread = None
         self.error = None
         self.tracker = CandidateTracker()
+        self.selector = SignalSelector()
 
     @property
     def running(self):
@@ -72,6 +74,7 @@ class SpectrumMonitor:
         self._stop.clear()
         self.error = None
         self.tracker.reset()
+        self.selector.reset()
         self.thread = threading.Thread(target=self._run, daemon=True, name="spectrum-462")
         self.thread.start()
 
@@ -102,6 +105,7 @@ class SpectrumMonitor:
                 result, power, floor = analyze(iq, return_bins=True)
                 candidates = detect_bins(power, floor, SAMPLE_RATE, CENTER_HZ)
                 result["candidates"] = self.tracker.update(candidates)
+                result["selection"] = self.selector.update(result["candidates"], time.monotonic())
                 result["candidate_threshold_db"] = 10.0
                 result["candidate_method"] = "experimental_fft_contrast_2_of_3"
                 self.callback("spectrum", result)

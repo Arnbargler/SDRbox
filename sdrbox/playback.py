@@ -13,8 +13,8 @@ import time
 AUDIO_RATE = 24_000
 CHANNELS = 1
 SAMPLE_BYTES = 2
-PREBUFFER_CHUNKS = 4  # 4 x 64ms chunks ~= 256ms jitter buffer
-QUEUE_CAPACITY = 16  # 16 x 64ms chunks ~= 1 second
+PREBUFFER_CHUNKS = 4  # 4 x 85ms chunks ~= 341ms jitter buffer
+QUEUE_CAPACITY = 16  # 16 x 85ms chunks ~= 1.37s
 
 
 class BufferedAudioPlayer:

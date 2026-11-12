@@ -3,7 +3,6 @@
 No tuner hops or confirmed hit logs; audio is local rackio ALSA only.
 All SDR USB calls and streaming DSP belong to one worker thread.
 """
-import subprocess
 import threading
 import time
 
@@ -14,6 +13,7 @@ from rtlsdr import RtlSdr
 from .detector import CandidateTracker, detect_bins
 from .selector import SignalSelector
 from .audio import NfmDemodulator, silence
+from .playback import BufferedAudioPlayer
 
 CENTER_HZ = 462_650_000
 SAMPLE_RATE = 2_048_000
@@ -105,24 +105,22 @@ class SpectrumMonitor:
 
     def _run(self):
         sdr = None
-        player = None
+        player = BufferedAudioPlayer()
         demod = NfmDemodulator()
         audio_error = None
+        last_iq_at = None
+        max_iq_gap_ms = 0.0
+        max_dsp_ms = 0.0
         last_selection = {"status": "SEARCHING", "frequency_mhz": None}
         try:
             sdr = RtlSdr(0)
             sdr.sample_rate = SAMPLE_RATE
             sdr.center_freq = CENTER_HZ
             sdr.gain = 30
-            # Local speaker output, independent of browser sessions.
-            # Keep ALSA clock fed with silence when not receiving, avoiding
-            # expensive/repeated process starts and underruns on lock changes.
+            # The PCM writer has its own queue/thread: ALSA pipe backpressure
+            # must not stall USB capture or the time-critical demod path.
             try:
-                player = subprocess.Popen(
-                    ["aplay", "-q", "-r", "24000", "-f", "S16_LE", "-c", "1"],
-                    stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
-                    stderr=subprocess.PIPE, bufsize=0,
-                )
+                player.start()
             except OSError as exc:
                 audio_error = f"Cannot start aplay: {exc}"
             sdr.read_samples(READ_SIZE)  # discard unsteady initial samples
@@ -130,6 +128,9 @@ class SpectrumMonitor:
             while not self._stop.is_set():
                 iq = sdr.read_samples(READ_SIZE)
                 now = time.monotonic()
+                if last_iq_at is not None:
+                    max_iq_gap_ms = max(max_iq_gap_ms, (now - last_iq_at) * 1000.0)
+                last_iq_at = now
                 if self._threshold_changed.is_set():
                     self._threshold_changed.clear()
                     self.tracker.reset()
@@ -198,20 +199,18 @@ class SpectrumMonitor:
                         GMRS_CENTERS_HZ,
                         key=lambda hz: abs(hz - selected_mhz * 1e6),
                     )
-                if player is not None and audio_error is None:
-                    if player.poll() is not None:
-                        audio_error = f"aplay exited: {player.returncode}"
-                    else:
-                        try:
-                            if target_hz is None:
-                                demod.reset()
-                                pcm = silence(len(iq))
-                            else:
-                                demod.tune(target_hz, CENTER_HZ, len(iq))
-                                pcm = demod.demodulate(iq)
-                            player.stdin.write(pcm.tobytes())
-                        except (OSError, BrokenPipeError) as exc:
-                            audio_error = f"Local PCM write failed: {exc}"
+                # The capture worker never waits for ALSA writes. Record how
+                # much time DSP itself consumes for comparison against 16ms IQ.
+                dsp_started = time.monotonic()
+                if target_hz is None:
+                    demod.reset()
+                    pcm = silence(len(iq))
+                else:
+                    demod.tune(target_hz, CENTER_HZ, len(iq))
+                    pcm = demod.demodulate(iq)
+                max_dsp_ms = max(max_dsp_ms, (time.monotonic() - dsp_started) * 1000)
+                player.offer(pcm)
+                audio_error = player.error or audio_error
                 if result is not None:
                     result["audio"] = (
                         "ERROR: " + audio_error if audio_error
@@ -225,26 +224,18 @@ class SpectrumMonitor:
                     result["selection"]["audio_active"] = bool(target_hz is not None and not audio_error)
                     result["selection"]["audio_hold"] = last_selection["status"] == "HANG"
                     result["audio_gate"] = "OPEN" if target_hz is not None else "CLOSED"
+                    result["audio_diagnostics"] = {
+                        **player.stats(),
+                        "max_iq_interval_ms": round(max_iq_gap_ms, 1),
+                        "max_demod_ms": round(max_dsp_ms, 1),
+                    }
                     self.callback("spectrum", result)
         except Exception as exc:
             if not self._stop.is_set():
                 self.error = f"{type(exc).__name__}: {exc}"
                 self.callback("spectrum_error", self.error)
         finally:
-            if player is not None:
-                try:
-                    player.stdin.close()
-                except (OSError, ValueError):
-                    pass
-                if player.poll() is None:
-                    player.terminate()
-                try:
-                    player.wait(timeout=1.0)
-                except subprocess.TimeoutExpired:
-                    player.kill()
-                    player.wait(timeout=1.0)
-                if player.stderr is not None:
-                    player.stderr.close()
+            player.stop()
             if sdr is not None:
                 try:
                     sdr.close()

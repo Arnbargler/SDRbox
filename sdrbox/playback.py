@@ -13,8 +13,8 @@ import time
 AUDIO_RATE = 24_000
 CHANNELS = 1
 SAMPLE_BYTES = 2
-PREBUFFER_CHUNKS = 10
-QUEUE_CAPACITY = 64
+PREBUFFER_CHUNKS = 4  # 4 x 64ms chunks ~= 256ms jitter buffer
+QUEUE_CAPACITY = 16  # 16 x 64ms chunks ~= 1 second
 
 
 class BufferedAudioPlayer:
@@ -31,6 +31,7 @@ class BufferedAudioPlayer:
         self.writer_gap_max_ms = 0.0
         self.writes_blocked = 0
         self._last_written = None
+        self._chunk_ms = 16.0
         self._lock = threading.Lock()
         self._stderr_tail = deque(maxlen=5)
 
@@ -55,6 +56,7 @@ class BufferedAudioPlayer:
         if self.writer is None or self.error is not None:
             return
         block = pcm.tobytes() if hasattr(pcm, "tobytes") else bytes(pcm)
+        self._chunk_ms = 1000.0 * len(block) / (AUDIO_RATE * CHANNELS * SAMPLE_BYTES)
         try:
             self.queue.put_nowait(block)
         except queue.Full:
@@ -74,7 +76,7 @@ class BufferedAudioPlayer:
     def stats(self):
         with self._lock:
             return {
-                "queued_ms": round(self.queue.qsize() * 16.0, 0),
+                "queued_ms": round(self.queue.qsize() * self._chunk_ms, 0),
                 "written_chunks": self.sent_chunks,
                 "dropped_chunks": self.dropped_chunks,
                 "max_writer_gap_ms": round(self.writer_gap_max_ms, 1),

@@ -1,4 +1,4 @@
-"""SDRbox v0.3: GMRS channel scan via rtl_fm; simulator optional."""
+"""SDRbox v0.4: Python-managed GMRS scanner and legacy receiver."""
 import asyncio
 import os
 from collections import deque
@@ -102,7 +102,6 @@ async def cycle():
                 if state["status"] in ("RECEIVING", "HELD", "SCANNING") and state["scan_profile"] != "MANAGED_1_7" and not receiver.running:
                     reason = receiver.failure()
                     await asyncio.to_thread(receiver.stop)
-        await asyncio.to_thread(scanner.stop)
                     state.update(status="ERROR", message=reason, audio="LOCAL AUDIO STOPPED")
                     state["revision"] += 1
                     await broadcast()
@@ -149,6 +148,7 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             pass
         await asyncio.to_thread(receiver.stop)
+        await asyncio.to_thread(scanner.stop)
 
 
 app = FastAPI(title="SDRbox", version="0.4.0", lifespan=lifespan)
@@ -224,6 +224,8 @@ async def command(payload: Command):
                         state["revision"] += 1
                         await broadcast()
                         raise HTTPException(503, state["message"]) from exc
+                if managed and state["status"] == "HELD":
+                    scanner.resume()
                 scanning = state["scan_profile"] != "FIXED_1"
                 managed = state["scan_profile"] == "MANAGED_1_7"
                 state.update(status="SCANNING" if scanning else "RECEIVING",
@@ -239,11 +241,11 @@ async def command(payload: Command):
         elif name == "scan_hold":
             if MODE == "LIVE" and state["scan_profile"] == "SCAN_1_7":
                 raise HTTPException(409, "Active frequency not exposed by legacy rtl_fm scan; HOLD unavailable")
-            if MODE == "LIVE" and state["scan_profile"] == "MANAGED_1_7":
-                await asyncio.to_thread(scanner.hold)
             if state["status"] not in ("SCANNING", "RECEIVING"):
                 raise HTTPException(409, "Start scanning or receiving first")
-            state.update(status="HELD", message=("Holding GMRS 01 · local audio continues"
+            if MODE == "LIVE" and state["scan_profile"] == "MANAGED_1_7":
+                scanner.hold()
+            state.update(status="HELD", message=("Holding current channel · local audio continues"
                         if MODE == "LIVE" else "Manual hold · SIMULATED"))
         elif name == "scan_stop":
             if MODE == "LIVE":

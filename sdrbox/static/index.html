@@ -30,7 +30,16 @@
           <div class="signal-header"><span>SIGNAL</span><span id="signal-value">NOT MEASURED</span></div>
           <div class="signal"><div id="signal-bar"></div></div>
         </section>
-        <section class="activity panel">
+        <section class="activity panel" id="spectrum-panel" hidden>
+          <div class="eyebrow"><span>LIVE IQ SPECTRUM · RELATIVE dB</span><span id="spectrum-age">AWAITING DATA</span></div>
+          <div class="spectrum-controls">
+            <span id="spectrum-span">462 MHz · 1.70 MHz usable</span>
+            <button id="spectrum-zoom" type="button">ZOOM: FULL</button>
+          </div>
+          <canvas id="spectrum-plot" width="600" height="180" aria-label="Live measured spectrum and estimated noise baseline"></canvas>
+          <div class="spectrum-key"><span>— RF power</span><span>— local floor</span><span>CH1–7 markers</span></div>
+        </section>
+        <section class="activity panel" id="activity-panel">
           <div class="eyebrow">RECENT ACTIVITY <span id="activity-label">NO DETECTION YET</span></div>
           <div id="hits" class="hits"><p class="empty">No simulated activity yet.</p></div>
         </section>
@@ -46,11 +55,12 @@
     <footer><span id="device">SIMULATOR</span><span id="audio">AUDIO: CONNECTING</span></footer>
   </div>
   <dialog id="info">
-    <h2>SDRbox v0.5</h2>
+    <h2>SDRbox v0.6</h2>
     <p id="info-mode">Connecting…</p>
-    <p>Persistent scan keeps the RTL-SDR open and retunes in Python, with experimental FM demodulation and RF contrast detection. The tested Python/rtl_fm scanner remains available as a fallback. Audio plays on rackio only.</p>
+    <p>S1 Spectrum uses one continuously captured 462 MHz window, measures relative FFT power and a local floor, and produces NO audio or detected hits. Persistent scan keeps the RTL-SDR open and retunes in Python, with experimental FM demodulation and RF contrast detection. The tested Python/rtl_fm scanner remains available as a fallback. Audio plays on rackio only.</p>
     <label for="profile">Receiver mode</label>
     <select id="profile">
+      <option value="SPECTRUM_462">S1 · GMRS FFT spectrum (no audio)</option>
       <option value="PERSISTENT_1_7">Persistent RTL-SDR scan (experimental)</option>
       <option value="MANAGED_1_7">Python / rtl_fm scan (tested fallback)</option>
       <option value="SCAN_1_7">Legacy scan 1–7 (rtl_fm hopping)</option>

@@ -1,6 +1,6 @@
 # SDRbox HTTP / WebSocket interface
 
-**Current endpoints (implemented v0.5):**
+**Current endpoints (implemented v0.6):**
 
 | Endpoint | Meaning |
 | --- | --- |
@@ -38,3 +38,7 @@ Example existing commands:
 ## Web ownership and security
 
 One authoritative server and SDR worker; local and remote browsers observe the same state. Audio generated on rackio independently of browser lifetime. The present system is an unauthenticated **trusted-LAN prototype**; do not expose the API publicly. Current origin checks cover WebSocket only; stronger HTTP origin/CSRF protection and authentication are needed before wider use. No arbitrary shell execution or remote transmission commands.
+
+## S1 additions in v0.6
+
+Added selectable profile `SPECTRUM_462` through the existing `set_scan_profile` command. Under this profile `scan_start` starts a single fixed-window RTL IQ capture; `scan_stop` releases the device. The shared state snapshot includes `spectrum` when active: `center_mhz`, `low_mhz`, `high_mhz`, `sample_rate_hz`, `fft_size`, `power_db` (512 relative spectral maxima), `noise_db` (512 nearby local baseline points), `units="relative_dB_uncalibrated"`, and Unix `captured_at`. Spectrum null means no current data. No audio or hit events from this profile. This is a prototype snapshot representation; do not send raw IQ or unbounded telemetry through WebSockets.

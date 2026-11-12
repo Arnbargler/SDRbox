@@ -88,7 +88,7 @@ function render(s){
  $("sensitivity").value=String(s.threshold_db ?? 15);
  $("sensitivity-value").textContent="+"+(s.threshold_db ?? 15)+" dB";
  $("audio-status").textContent=s.audio?.startsWith("ERROR:")?"ERROR":s.audio?.includes("ACTIVE")?"RECEIVING":s.audio?.includes("STOPPED")?"STOPPED":"MUTED";
- $("audio-detail").textContent=s.audio?.startsWith("ERROR:")?s.audio:"Rackio speaker · 24 kHz NFM";
+ $("audio-detail").textContent=s.audio?.startsWith("ERROR:")?s.audio:(s.spectrum?.audio_gate ? "Gate "+s.spectrum.audio_gate+" · rackio 24 kHz NFM" : "Rackio speaker · 24 kHz NFM");
  if(s.spectrum){
    const sp=s.spectrum;
    const selection=sp.selection || {status:"SEARCHING",frequency_mhz:null};

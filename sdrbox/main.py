@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from .receiver import LocalGMRSReceiver
 from .scanner import ManagedScanner
 from .persistent import PersistentScanner
+from .spectrum import SpectrumMonitor
 
 BASE = Path(__file__).resolve().parent
 BANKS = ("CB", "GMRS", "AIR", "AMB", "FIRE")
@@ -28,6 +29,7 @@ MODE = "SIMULATED" if os.getenv("SDRBOX_RECEIVER", "real").lower() == "sim" else
 receiver = LocalGMRSReceiver()
 scanner = None
 persistent = None
+spectrum = None
 CLIENTS: set[WebSocket] = set()
 LOCK = asyncio.Lock()
 HITS = deque(maxlen=40)
@@ -38,6 +40,7 @@ state = {
     "frequency_mhz": None, "channel": None, "modulation": "NFM",
     "signal_percent": None if MODE == "LIVE" else 0,
     "activity": False,
+    "spectrum": None,
     "device": "RTL-SDR / R820T · GMRS 1–7" if MODE == "LIVE" else "SIMULATOR · NO SDR CONNECTED",
     "audio": "LOCAL / RACKIO (when active)" if MODE == "LIVE" else "SIMULATION · NO AUDIO",
     "message": "Ready · GMRS 01" if MODE == "LIVE" else "Ready · simulation",
@@ -80,6 +83,24 @@ async def scanner_event(event, data):
             state.update(status="ERROR", activity=False, audio="LOCAL AUDIO STOPPED", message=f"Scanner error: {data}"[:400])
         state["revision"] += 1
         await broadcast()
+
+
+async def spectrum_event(event, data):
+    async with LOCK:
+        if state["scan_profile"] != "SPECTRUM_462" or state["status"] in ("STOPPED", "ERROR"):
+            return
+        if event == "spectrum":
+            state["spectrum"] = data
+            state["message"] = "Live FFT · 462 MHz window · no demodulation"
+        elif event == "spectrum_error":
+            state.update(status="ERROR", spectrum=None, audio="NO AUDIO (S1)",
+                         message=f"Spectrum error: {data}"[:400])
+        state["revision"] += 1
+        await broadcast()
+
+
+def spectrum_callback(event, data):
+    LOOP.call_soon_threadsafe(lambda: asyncio.create_task(spectrum_event(event, data)))
 
 
 def snapshot():
@@ -141,10 +162,11 @@ async def cycle():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global worker_task, scanner, persistent, LOOP
+    global worker_task, scanner, persistent, spectrum, LOOP
     LOOP = asyncio.get_running_loop()
     scanner = ManagedScanner(scanner_callback)
     persistent = PersistentScanner(scanner_callback)
+    spectrum = SpectrumMonitor(spectrum_callback)
     worker_task = asyncio.create_task(cycle())
     try:
         yield
@@ -157,9 +179,10 @@ async def lifespan(app: FastAPI):
         await asyncio.to_thread(receiver.stop)
         await asyncio.to_thread(scanner.stop)
         await asyncio.to_thread(persistent.stop)
+        await asyncio.to_thread(spectrum.stop)
 
 
-app = FastAPI(title="SDRbox", version="0.5.0", lifespan=lifespan)
+app = FastAPI(title="SDRbox", version="0.6.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 
 
@@ -180,7 +203,7 @@ async def index():
 
 @app.get("/api/v1/health")
 async def health():
-    return {"ok": True, "mode": MODE, "receiver_connected": (receiver.running or scanner.running or persistent.running) if MODE == "LIVE" else False,
+    return {"ok": True, "mode": MODE, "receiver_connected": (receiver.running or scanner.running or persistent.running or spectrum.running) if MODE == "LIVE" else False,
             "local_audio_ready": (receiver.running or scanner.running or persistent.running) if MODE == "LIVE" else False,
             "status": state["status"]}
 
@@ -207,7 +230,21 @@ async def get_hits(limit: int = 30):
 async def command(payload: Command):
     async with LOCK:
         name = payload.command
-        if name in ("scan_start", "scan_resume"):
+        if name in ("scan_start", "scan_resume") and MODE == "LIVE" and state["scan_profile"] == "SPECTRUM_462":
+            if not state["bank_enabled"]["GMRS"]:
+                raise HTTPException(409, "Enable GMRS before starting spectrum view")
+            if not spectrum.running:
+                await asyncio.to_thread(spectrum.start)
+                await asyncio.sleep(0.25)
+                if not spectrum.running:
+                    state.update(status="ERROR", spectrum=None, message=f"Spectrum failed: {spectrum.error}")
+                    state["revision"] += 1
+                    await broadcast()
+                    raise HTTPException(503, state["message"])
+            state.update(status="SCANNING", channel="GMRS 1–7 · FFT WINDOW",
+                         frequency_mhz=462.65, modulation="IQ", activity=False,
+                         audio="NO AUDIO (S1)", message="Collecting actual FFT samples", spectrum=None)
+        elif name in ("scan_start", "scan_resume"):
             if not any(state["bank_enabled"].values()):
                 raise HTTPException(409, "Enable at least one bank")
             if MODE == "LIVE":
@@ -249,6 +286,8 @@ async def command(payload: Command):
             else:
                 state.update(status="SCANNING", message="Simulated scanning started")
         elif name == "scan_hold":
+            if MODE == "LIVE" and state["scan_profile"] == "SPECTRUM_462":
+                raise HTTPException(409, "HOLD is not used during S1 spectrum visibility")
             if state["status"] == "HELD":
                 if MODE == "LIVE" and state["scan_profile"] in ("MANAGED_1_7", "PERSISTENT_1_7"):
                     active_scanner().resume()
@@ -270,10 +309,14 @@ async def command(payload: Command):
                 await asyncio.to_thread(receiver.stop)
                 await asyncio.to_thread(scanner.stop)
                 await asyncio.to_thread(persistent.stop)
+                await asyncio.to_thread(spectrum.stop)
                 state["audio"] = "LOCAL AUDIO STOPPED"
                 state["activity"] = False
+                state["spectrum"] = None
             state.update(status="STOPPED", message="Stopped", signal_percent=None if MODE == "LIVE" else 0)
         elif name == "scan_skip":
+            if MODE == "LIVE" and state["scan_profile"] == "SPECTRUM_462":
+                raise HTTPException(409, "No channel hopping in S1 spectrum view")
             if MODE == "LIVE":
                 if state["scan_profile"] not in ("MANAGED_1_7", "PERSISTENT_1_7") or state["status"] not in ("SCANNING", "RECEIVING", "HELD"):
                     raise HTTPException(409, "SKIP available only during managed scanning")
@@ -286,17 +329,17 @@ async def command(payload: Command):
                 raise HTTPException(409, "Start scanning first")
             state.update(status="SCANNING", message="Skipping · SIMULATED", signal_percent=0)
         elif name == "set_scan_profile":
-            if MODE != "LIVE" or payload.profile not in ("PERSISTENT_1_7", "MANAGED_1_7", "SCAN_1_7", "FIXED_1"):
-                raise HTTPException(422, "Select PERSISTENT_1_7, MANAGED_1_7, SCAN_1_7 or FIXED_1")
-            if receiver.running or scanner.running or persistent.running:
+            if MODE != "LIVE" or payload.profile not in ("SPECTRUM_462", "PERSISTENT_1_7", "MANAGED_1_7", "SCAN_1_7", "FIXED_1"):
+                raise HTTPException(422, "Select SPECTRUM_462, PERSISTENT_1_7, MANAGED_1_7, SCAN_1_7 or FIXED_1")
+            if receiver.running or scanner.running or persistent.running or spectrum.running:
                 raise HTTPException(409, "Stop the receiver before changing scan profile")
             state["scan_profile"] = payload.profile
             state.update(status="STOPPED", message="Profile selected · press SCAN",
-                         channel=None, frequency_mhz=None)
+                         channel=None, frequency_mhz=None, spectrum=None)
         elif name == "set_squelch":
             if MODE != "LIVE" or payload.squelch is None or not 1 <= payload.squelch <= 100:
                 raise HTTPException(422, "Squelch must be 1–100")
-            if receiver.running or scanner.running or persistent.running:
+            if receiver.running or scanner.running or persistent.running or spectrum.running:
                 raise HTTPException(409, "Stop receiver before changing squelch")
             state["squelch"] = payload.squelch
             state["message"] = "Squelch set · press SCAN"
@@ -311,8 +354,9 @@ async def command(payload: Command):
                     await asyncio.to_thread(receiver.stop)
                     await asyncio.to_thread(scanner.stop)
                     await asyncio.to_thread(persistent.stop)
+                    await asyncio.to_thread(spectrum.stop)
                     state["audio"] = "LOCAL AUDIO STOPPED"
-                state.update(status="STOPPED", message="All banks disabled")
+                state.update(status="STOPPED", message="All banks disabled", spectrum=None)
         else:
             raise HTTPException(422, "Unknown command")
         state["revision"] += 1

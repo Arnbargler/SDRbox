@@ -2,7 +2,7 @@
 
 **SDRbox is a receive-only, spectrum-first radio monitoring appliance.** The goal is to look across usable SDR spectrum windows (roughly 2 MHz each on the current dongle), identify candidate signals above an adaptive noise floor, prioritize useful activity, and demodulate the selected signal. **Not** a conventional frequency-by-frequency scanner as the final architecture.
 
-**Current status — 2026-11-11:** FastAPI/browser control, local rackio audio, and several GMRS 1–7 receiver prototypes work. The persistent `pyrtlsdr` backend **starts and retunes at approximately three channels/second on rackio** after resolving a library compatibility error. This is still *per-channel retuning*, not wideband FFT discovery. Audio quality and detection performance in the persistent backend have **not yet been separately confirmed**. No spectrum-first detector is implemented.
+**Current status — 2026-11-11:** S1 v0.6 spectrum visualization added to GitHub, **awaiting rackio field test**. FastAPI/browser control, local rackio audio, and several GMRS 1–7 receiver prototypes work. The persistent `pyrtlsdr` backend **starts and retunes at approximately three channels/second on rackio** after resolving a library compatibility error. This is still *per-channel retuning*, not wideband FFT discovery. Audio quality and detection performance in the persistent backend have **not yet been separately confirmed**. An FFT-only spectrum view is now implemented; there is **no spectrum-first signal detector or automatic selection**.
 
 ## Hardware and UI
 

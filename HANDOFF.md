@@ -8,7 +8,7 @@ Build a **spectrum-first receive-only scanner** that captures overlapping approx
 
 ## Do not code yet
 
-The user requested a **documentation/repository cleanup and revised development direction only**. The next implementation work is **S1: wideband FFT visibility in one 462 MHz GMRS window**, but proceed only after explicit instruction.
+The user subsequently authorized **S1 spectrum visibility**. A spectrum-only v0.6 implementation has now been committed and is **awaiting the first rackio test**. Do not start S2 candidate selection until S1 IQ/FFT output is validated.
 
 ## Current machine, proven behaviour
 
@@ -51,3 +51,7 @@ The user requested a **documentation/repository cleanup and revised development 
 4. Keep project small and clear: user likes brief steps and verified incremental changes. Don't automatically add frameworks, Docker, kiosk, network audio or multiple SDRs.
 
 **Repository:** https://github.com/Arnbargler/SDRbox. **Security:** trusted LAN prototype only, unauthenticated controls; do not expose to WAN.
+
+## v0.6 S1 ready for hardware test
+
+`sdrbox/spectrum.py` owns a single RTL device centered on 462.650 MHz at 2.048 MS/s and emits FFT/noise arrays for a nominal 461.800–463.500 MHz center crop. Right UI pane offers full-window and GMRS zoom. INFO profile `SPECTRUM_462` is only a diagnostic FFT visualization: **no audio, hits, carrier qualification or scanning other windows**. Prior `PERSISTENT_1_7`, `MANAGED_1_7`, `SCAN_1_7` and `FIXED_1` preserved. Next test: silent baseline, CH1 and CH7 walkie-talkie peaks, CPU update responsiveness, STOP cleanup. See RUNNING.md.

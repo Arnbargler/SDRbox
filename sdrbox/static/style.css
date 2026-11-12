@@ -8,3 +8,9 @@
 .candidate-entry{display:flex;justify-content:space-between;gap:7px;align-items:baseline;padding:1px 0}
 .candidate-entry strong{font-size:11px;color:#ffcf78;overflow:visible;white-space:nowrap}
 .candidate-entry span{font-size:10px;color:#abc9b4;white-space:nowrap}
+
+/* S3 selector: cyan lock status, separate from amber candidate markers. */
+.selected-signal strong{color:#73ddfc}
+.selected-signal .insight-label{display:flex;justify-content:space-between;gap:4px}
+#selection-status{color:#73ddfc;font-size:9px;font-weight:850}
+.selected-signal small{color:#a7cbd4}

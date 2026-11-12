@@ -1,6 +1,6 @@
-# SDRbox v0.8 — spectrum + candidate visualization
+# SDRbox v0.9 — spectrum, candidates and S3 signal selection
 
-**Only one mode:** live fixed-window FFT capture with experimental spectral candidates. No traditional scanner profiles, squelch slider, HOLD/SKIP, audio, or activity logs.
+**Only one mode:** live fixed-window FFT capture with S2 spectral candidates and experimental S3 selection; no audio or radio retuning. No traditional scanner profiles, squelch slider, HOLD/SKIP, audio, or activity logs.
 
 Stop any old Uvicorn server with Ctrl+C, and close GQRX or other radio apps. Then on rackio:
 
@@ -34,3 +34,7 @@ Trusted LAN only. Do not port-forward this unauthenticated service.
 Before starting the server or with the venv active, run `python -m unittest discover -s tests` for offline synthetic-spectrum detector checks. With the live FFT running, the diagnostics column shows **S2 SPECTRAL CANDIDATES**, listing up to two persistent peaks. Amber solid markers on the graph indicate persistent peaks; dim dashed markers indicate provisional detections. Try idle antenna (look for spurious peaks), then PTT on CH1 and CH7 for at least one second each. Compare displayed estimates to 462.5625 and 462.7125 MHz. Notice how quickly each candidate appears after PTT and disappears after release.
 
 These are **experimental candidates**, not voice/GMRS classification. The detector uses a 10 dB peak-to-local-noise threshold and 2-of-3 FFT-frame persistence, excluding a +/-12 kHz center DC region. A constant interference spur can pass that filter; idle false positives are expected to guide refinement. No audio, squelch or automatic selection yet. If the update rate drops below the previously observed ~2–3 frames/s, report it.
+
+## Test S3 signal selection
+
+Run offline tests: `python -m unittest discover -s tests`. In Chrome use Ctrl+Shift+R and START CAPTURE. The formerly raw strongest-bin readout is now **S3 SELECTED SIGNAL**: `SEARCHING` when no stable candidate, `SELECTED` with a cyan marker after two matched S2 frames, and `HANG` with a countdown after matching peak disappears. Transmit on GMRS CH1 (~462.5625 MHz), release PTT, then test CH7 (~462.7125 MHz). Selection should not jump among nearby spur peaks while an existing candidate remains present. Release time is 1.2 seconds measured from last match in *real time*, checked on incoming FFT frames; with 2–3 FPS it may appear to take slightly longer on screen. At two feet, multiple apparent candidates can reflect front-end overload, so also test at a greater distance. The cyan marker does **not** mean demodulation or audio; this is only RF peak selection.

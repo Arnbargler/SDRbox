@@ -1,6 +1,6 @@
 # SDRbox — handoff (2026-11-11)
 
-**Direction: spectrum-first SDR monitor only.** User explicitly asked to remove all old sequential scanning modes and associated code and redesign the interface around real FFT data. v0.8 S2 candidate detection is now committed, **not yet field-tested on rackio**. The user already approved the v0.7 redesigned spectrum-first interface.
+**Direction: spectrum-first SDR monitor only.** User explicitly asked to remove all old sequential scanning modes and associated code and redesign the interface around real FFT data. v0.9 S3 signal selection is now committed, **awaiting rackio field verification**. S2 was field-tested: no idle false positives observed in that session, multiple peaks with nearby walkie-talkie, correct frequency strongest. The user already approved the v0.7 redesigned spectrum-first interface.
 
 ## Proven hardware & latest test
 
@@ -13,7 +13,8 @@
 ## Active files
 
 - `sdrbox/spectrum.py` — single persistent RtlSdr; center 462.650 MHz; 2.048 MS/s; 32768 complex samples/read; eight 4096-point FFTs averaged; local percentile floor; 512-point plotted central 1.70 MHz; includes candidates in snapshots.
-- `sdrbox/detector.py` — experimental spectral blob and temporal persistence logic, testable independently of SDR; `tests/test_detector.py` provides offline checks.
+- `sdrbox/detector.py` — spectral blob and temporal persistence logic, testable independently of SDR; `tests/test_detector.py`.
+- `sdrbox/selector.py` — S3 stable strongest-qualified-candidate choice, +/-8 kHz frequency matching, hold until 1.2s loss; `tests/test_selector.py`.
 - `sdrbox/main.py` — FastAPI, WebSocket FFT snapshots, START/STOP command, health/state endpoints.
 - `sdrbox/static/index.html`, `app.js`, `style.css` — one-screen large spectrum canvas, zoom and diagnostics.
 - `requirements.txt` — all app/SDR dependencies.
@@ -37,3 +38,7 @@ Run the unit tests and v0.8 spectrum app. Idle spectrum should normally display 
 ## S2 field confirmation / next objective
 
 User observed no idle false positives in current test, and transmitting with talkie ~2 feet from NESDR yielded several candidates; highest-ranked candidate was correct frequency. Extra peaks may result from very strong near-field input. Suggest increase transmitter distance and validate signal ranking again. Next S3 should select/hold strongest qualified candidate and release cleanly before enabling NFM audio. Do not overstate false-positive immunity: observation was one field test.
+
+## S3 test requested 2026-11-11
+
+Run `python -m unittest discover -s tests` and restart Uvicorn. With live IQ capture, transmit CH1: after S2's 2-frame confirmation, one candidate should become SELECTED (cyan marker, frequency near 462.5625), with other spurious candidates amber. Momentary drops should show HANG and a release countdown, then SEARCHING after ~1.2 s without a matching strong candidate. Key CH7 and check re-selection. If a competing stronger peak appears during a current selection, do not preempt; this is intentional to prevent flicker. **No audio**, no retune, no confirmed transmission/GMRS classification. S3 is still experimental and not verified on actual radio hardware yet.

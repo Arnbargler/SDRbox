@@ -1,4 +1,4 @@
-"""SDRbox spectrum-first S2: live IQ FFT and experimental RF candidates."""
+"""SDRbox spectrum-first S3: wideband IQ FFT, RF candidates and selection."""
 import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -61,7 +61,7 @@ async def lifespan(app: FastAPI):
         await asyncio.to_thread(monitor.stop)
         loop = None
 
-app = FastAPI(title="SDRbox Spectrum Monitor", version="0.8.0", lifespan=lifespan)
+app = FastAPI(title="SDRbox Spectrum Monitor", version="0.9.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 
 class Command(BaseModel):

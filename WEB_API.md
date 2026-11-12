@@ -19,3 +19,7 @@ Future S2 candidate reporting is NOT implemented. Avoid sending raw IQ over ordi
 ## S2 additional spectrum fields (v0.8)
 
 `spectrum.candidates` contains up to eight experimental candidate objects sorted by FFT contrast: `frequency_mhz` (estimated peak-bin center), `width_khz` (coarse grouped-bin width), `contrast_db` (relative to estimated local percentile floor), `seen_frames` and `provisional` (false after at least two recent detections). Other new fields: `candidate_threshold_db` and `candidate_method`. These are **not confirmed transmissions**, do not trigger local audio, and are not persisted as hits. There is no user-adjustable threshold in this first test iteration.
+
+## S3 field added to spectrum snapshots (v0.9)
+
+`spectrum.selection` has `status` (`SEARCHING`, `SELECTED`, `HANG`), `frequency_mhz` (locked approximate FFT peak frequency or null), `last_detected_mhz`, `contrast_db`, `width_khz`, `release_remaining_s`, `audio_active=false`. This is produced by a server-side selector tied to the existing S2 candidate stream; no browser controls or other commands were added. A selected peak is **not** confirmed voice or a change in tuner frequency. The receiver remains centered on 462.650 MHz for the entire capture.

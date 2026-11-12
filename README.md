@@ -2,13 +2,14 @@
 
 SDRbox is a **receive-only wideband spectrum monitor**, not a conventional channel-hopping scanner. Our long-term goal is to capture overlapping ~2 MHz usable RF windows, discover multiple signals above their local noise floor, select the strongest qualified candidate, and demodulate it.
 
-## Current code: v0.8 (S2 candidate detection awaiting rackio field test)
+## Current code: v0.9 (S3 signal selection awaiting rackio test)
 
 - One live window centered on **462.650 MHz** at **2.048 MS/s**.
 - Measured averaged FFT spectrum plus estimated local noise floor, refreshed ~2–3 times/second in the previous S1 interface.
 - Full-window and GMRS channels 1–7 display zoom; single START/STOP capture button.
 - A spectrum-centric 1280×400 Chrome UI, shared over the home LAN.
-- **Experimental S2 spectral candidates**: RF power blobs above a local noise estimate, approximate peak frequencies, and two-frame persistence. No verified voice detection, audio, hit logging, or multi-window tuning yet.
+- **Field-tested S2 spectral candidates:** idle test had no observed false positives; a nearby walkie-talkie produced multiple RF peaks but the correct frequency ranked strongest.
+- **New S3 experimental selection:** locks the strongest persistent RF candidate, maintains the lock against competing peaks, and releases after 1.2 seconds absent. Cyan indicates selected; amber indicates other peaks. No voice identification, audio, logging, or multi-window tuning yet.
 - Old scanner profiles and modules removed from the current branch; Git history preserves them.
 
 ## Hardware

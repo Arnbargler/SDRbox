@@ -14,3 +14,7 @@ The user chose to **retire the classic scanner interface** after proving that wi
 Only a single active window. No setting or mode popover, old bank toggles, squelch, HOLD, SKIP, hit logging or simulated state. Optional future layout changes should be driven by real signals and candidate detection.
 
 The original concept art `assets/scanner-mockup-option-2.webp` remains in the repository as **historical visual reference**, not the current running design. Local HTML/CSS/JS source is under `sdrbox/static/`.
+
+## S3 enhancement (v0.9)
+
+One readout now shows **S3 SELECTED SIGNAL** (frequency, SEARCHING/SELECTED/HANG status and release timer) rather than unqualified strongest-bin text. On the plot, **cyan** represents the locked signal while **amber** represents other candidate peaks, including nearby overload artifacts. No new tuning or listening controls, and no audio. The FFT remains dominant at 1280×400.

@@ -27,3 +27,8 @@ Future S2 candidate reporting is NOT implemented. Avoid sending raw IQ over ordi
 ## S4 controls and telemetry (v1.0)
 
 POST `/api/v1/commands`: `{"command":"set_sensitivity","threshold_db":15}` (value 8–30 dB). The authoritative server state includes `threshold_db`. Spectrum snapshots include `audio` (LOCAL NFM ACTIVE/LOCAL AUDIO MUTED or ALSA error), `audio_frequency_mhz` (nominal GMRS center currently demodulated or null), and `selection.audio_active` reporting audio gating. WebSocket `state.audio` reflects the local ALSA status. No browser audio; no new receive-only frequency commands. Candidate thresholds, lock strength and audio frequency have distinct meanings.
+
+
+## PCM playback diagnostics
+
+`spectrum.audio_diagnostics` contains `queued_ms`, `written_chunks`, `dropped_chunks`, `max_writer_gap_ms`, `slow_writes`, `max_iq_interval_ms`, `max_demod_ms`, and `error`. These values are diagnostic maxima/snapshots; they are not precise ALSA underrun counters. The browser's S4 audio detail shows Gate OPEN/CLOSED, peak IQ interval, queued milliseconds and dropped chunks. PCM is now passed to a dedicated bounded writer thread instead of synchronously blocking SDR capture on `aplay` stdin. No API command changes.

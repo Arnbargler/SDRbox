@@ -51,3 +51,8 @@ Check `python -m unittest discover -s tests` and a rackio test. Test no idle aud
 
 ## Current S4 troubleshooting
 Audio cut out rhythmically during continuous PTT although demod and FFT worked. Hysteresis/audio gate fix committed: lock tracks nominal GMRS channel despite bin movement, weaker provisional peak evidence may maintain but not initiate lock, audio continues through HANG. Await rackio verification. If silence persists while S3 SELECTED and S4 Gate OPEN, suspect PCM/ALSA buffering or IQ delivery rather than selector. Check after pull using 10-second continuous PTT.
+
+
+## Current diagnostic hypothesis and code
+
+Because speaker audio drops out even while the UI is SELECTED/Gate OPEN, suspect PCM pacing, synchronous aplay pipe writes, USB capture stalls or local ALSA scheduling. Introduced a buffered independent playback worker, finite queue, initial prebuffer, bounded overflow, and explicit ALSA period/buffer. SDR capture loop no longer performs potentially blocking stdin writes. `spectrum.audio_diagnostics` and S4 audio status now expose peak IQ read interval (ms), queue milliseconds and dropped chunks; tooltips also reveal max DSP time, slow writes and writer gaps. Expected IQ block interval is roughly 16ms (32768/2048000). Observe values under a continuous 10–15s PTT test and report; current change has **not** been field verified. Additional unit tests in `tests/test_playback.py` need running on rackio.

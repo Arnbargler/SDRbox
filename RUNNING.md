@@ -51,3 +51,10 @@ Run all offline tests first: `python -m unittest discover -s tests`. New synthet
 
 ## Periodic audio dropout retest
 After pulling latest changes, run python -m unittest discover -s tests, then launch Uvicorn and hold CH1 PTT while speaking for ~10 seconds. New logic keeps existing lock during weaker RF evidence and keeps audio gate OPEN during 1.2-second HANG. Watch S3 status and S4 Gate OPEN/CLOSED. If silence occurs while selection remains SELECTED and Gate OPEN, investigate local ALSA/PCM pacing; if status becomes SEARCHING and gate closes, investigate detector. HANG may now produce up to 1.2 seconds of noise after genuine PTT release; this is the intentional tradeoff for debugging brief fades.
+
+
+## S4 audio continuity test — queued playback, 2026-11-11
+
+User verified S4 locks and demodulates, FFT unchanged, but reported repeated approximately 1 s voice / 1 s silence. After prior selector/HANG fix, UI remains **SELECTED / Gate OPEN during silence**, so further lowering RF threshold is not justified. Reworked local PCM: `sdrbox/playback.py` buffers 24 kHz PCM into a bounded queue and sends it to aplay on a dedicated thread with an explicit ALSA period/buffer. The main SDR thread no longer waits for writes to the speaker. This is an **untested field fix**; not guaranteed until rackio verification.
+
+Pull, run `python -m unittest discover -s tests`, start Uvicorn and Ctrl+Shift+R. Test 10–15 seconds of continuous CH1 PTT and read S4 LOCAL AUDIO diagnostic line: `Gate OPEN · IQ Nms · Q Nms · drop N`. `IQ` is maximum inter-read interval, typical IQ chunk 16 ms at 2.048 MS/s. `Q` is buffered PCM time waiting to be written, `drop` counts blocks discarded if writer queue fills. Hover audio detail for maximal DSP time, ALSA writer gap and slow write count. If pulse persists, report whether gate remains OPEN and the IQ/Q/drop values. Large IQ gaps indicate SDR/CPU scheduling interruptions; queue drops indicate playback cannot keep up; persistent silence with both healthy points to ALSA device/routing. Buffering adds some audio latency compared to v1.0. No browser audio.

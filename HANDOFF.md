@@ -55,3 +55,7 @@ The user subsequently authorized **S1 spectrum visibility**. A spectrum-only v0.
 ## v0.6 S1 ready for hardware test
 
 `sdrbox/spectrum.py` owns a single RTL device centered on 462.650 MHz at 2.048 MS/s and emits FFT/noise arrays for a nominal 461.800–463.500 MHz center crop. Right UI pane offers full-window and GMRS zoom. INFO profile `SPECTRUM_462` is only a diagnostic FFT visualization: **no audio, hits, carrier qualification or scanning other windows**. Prior `PERSISTENT_1_7`, `MANAGED_1_7`, `SCAN_1_7` and `FIXED_1` preserved. Next test: silent baseline, CH1 and CH7 walkie-talkie peaks, CPU update responsiveness, STOP cleanup. See RUNNING.md.
+
+## Spectrum FFT first field test and fix — 2026-11-11
+
+User saw real CH1 peak when transmitting, confirming FFT RF capture/tuning, but graph appeared frozen after initial snapshot. Identified watchdog bug in main.py: legacy rtl_fm check incorrectly marked spectrum mode ERROR after ~1 second. Fix constrains rtl_fm watchdog to old receiver profiles and monitors spectrum thread separately. **Awaiting field re-test for automatic live refresh**; no new DSP/selection code added.

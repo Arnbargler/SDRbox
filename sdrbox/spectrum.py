@@ -10,6 +10,8 @@ import numpy as np
 from scipy.ndimage import percentile_filter
 from rtlsdr import RtlSdr
 
+from .detector import CandidateTracker, detect_bins
+
 CENTER_HZ = 462_650_000
 SAMPLE_RATE = 2_048_000
 READ_SIZE = 32_768
@@ -57,6 +59,7 @@ class SpectrumMonitor:
         self._stop = threading.Event()
         self.thread = None
         self.error = None
+        self.tracker = CandidateTracker()
 
     @property
     def running(self):
@@ -67,6 +70,7 @@ class SpectrumMonitor:
             return
         self._stop.clear()
         self.error = None
+        self.tracker.reset()
         self.thread = threading.Thread(target=self._run, daemon=True, name="spectrum-462")
         self.thread.start()
 
@@ -92,7 +96,19 @@ class SpectrumMonitor:
                 iq = sdr.read_samples(READ_SIZE)
                 if time.monotonic() - last < UPDATE_SECONDS:
                     continue
-                self.callback("spectrum", analyze(iq))
+                result = analyze(iq)
+                # Detection operates on full 4096-bin power, not the reduced
+                # 512-bin display; S2 never starts audio or records hits.
+                chunks = np.asarray(iq, dtype=np.complex64).reshape(-1, FFT_SIZE)
+                window = np.hanning(FFT_SIZE).astype(np.float32)
+                fft = np.fft.fftshift(np.fft.fft(chunks * window, axis=1), axes=1)
+                power = 10.0 * np.log10(np.maximum(np.mean(np.abs(fft) ** 2, axis=0), 1e-15))
+                floor = percentile_filter(power, percentile=25, size=201, mode="nearest")
+                candidates = detect_bins(power, floor, SAMPLE_RATE, CENTER_HZ)
+                result["candidates"] = self.tracker.update(candidates)
+                result["candidate_threshold_db"] = 10.0
+                result["candidate_method"] = "experimental_fft_contrast_2_of_3"
+                self.callback("spectrum", result)
                 last = time.monotonic()
         except Exception as exc:
             if not self._stop.is_set():

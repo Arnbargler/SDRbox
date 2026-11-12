@@ -239,6 +239,14 @@ async def command(payload: Command):
             else:
                 state.update(status="SCANNING", message="Simulated scanning started")
         elif name == "scan_hold":
+            if state["status"] == "HELD":
+                if MODE == "LIVE" and state["scan_profile"] == "MANAGED_1_7":
+                    scanner.resume()
+                state.update(status="SCANNING" if state["scan_profile"] != "FIXED_1" else "RECEIVING",
+                             message="Resumed current receiver")
+                state["revision"] += 1
+                await broadcast()
+                return {"accepted": True, "revision": state["revision"], "request_id": payload.request_id}
             if MODE == "LIVE" and state["scan_profile"] == "SCAN_1_7":
                 raise HTTPException(409, "Active frequency not exposed by legacy rtl_fm scan; HOLD unavailable")
             if state["status"] not in ("SCANNING", "RECEIVING"):

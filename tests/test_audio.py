@@ -14,6 +14,16 @@ class NfmAudioTests(unittest.TestCase):
         self.assertEqual(pcm.dtype, np.int16)
         self.assertFalse(np.any(pcm))
 
+    def test_64ms_iq_chunk_produces_64ms_pcm(self):
+        # S4 capture now uses 131072 IQ samples per read. Audio duration
+        # must remain exact even when the USB read granularity changes.
+        count = 131072
+        d = NfmDemodulator()
+        d.tune(462562500, 462650000, count)
+        pcm = d.demodulate(np.zeros(count, dtype=np.complex64))
+        self.assertEqual(len(pcm), 1536)
+        self.assertEqual(len(silence(count)), 1536)
+
     def test_demodulator_requires_tuning(self):
         d = NfmDemodulator()
         with self.assertRaises(RuntimeError):

@@ -1,6 +1,6 @@
 # SDRbox — handoff (2026-11-11)
 
-**Direction: spectrum-first SDR monitor only.** User explicitly asked to remove all old sequential scanning modes and associated code and redesign the interface around real FFT data. New v0.7 code has been committed but not field-tested on rackio yet.
+**Direction: spectrum-first SDR monitor only.** User explicitly asked to remove all old sequential scanning modes and associated code and redesign the interface around real FFT data. v0.8 S2 candidate detection is now committed, **not yet field-tested on rackio**. The user already approved the v0.7 redesigned spectrum-first interface.
 
 ## Proven hardware & latest test
 
@@ -12,7 +12,8 @@
 
 ## Active files
 
-- `sdrbox/spectrum.py` — single persistent RtlSdr; center 462.650 MHz; 2.048 MS/s; 32768 complex samples/read; eight 4096-point FFTs averaged; local percentile floor; 512-point plotted central 1.70 MHz.
+- `sdrbox/spectrum.py` — single persistent RtlSdr; center 462.650 MHz; 2.048 MS/s; 32768 complex samples/read; eight 4096-point FFTs averaged; local percentile floor; 512-point plotted central 1.70 MHz; includes candidates in snapshots.
+- `sdrbox/detector.py` — experimental spectral blob and temporal persistence logic, testable independently of SDR; `tests/test_detector.py` provides offline checks.
 - `sdrbox/main.py` — FastAPI, WebSocket FFT snapshots, START/STOP command, health/state endpoints.
 - `sdrbox/static/index.html`, `app.js`, `style.css` — one-screen large spectrum canvas, zoom and diagnostics.
 - `requirements.txt` — all app/SDR dependencies.
@@ -28,3 +29,7 @@ Pull on rackio, activate venv, install requirements, launch Uvicorn. Check Chrom
 S2 grouping elevated FFT bins into qualified signal candidates above a local noise floor, rejecting artifacts. S3 strongest qualified selection; S4 demodulate selected NFM in same IQ window with rackio local audio; S5 overlapping windows (GMRS 467, AIR AM). Do not infer signal identity from raw maximum bin; no calibrated dBm.
 
 LAN-only, unauthenticated controls; do not expose publicly.
+
+## Current S2 test objective
+
+Run the unit tests and v0.8 spectrum app. Idle spectrum should normally display **zero persistent candidates**, although static spurs may generate false positives. Key GMRS CH1, then CH7; look for amber candidate markers and ~462.5625 / ~462.7125 MHz labels after at least two FFT frames. Detection threshold fixed 10 dB above local percentile baseline; minimum 3 adjacent bins; skips +/-12 kHz center DC and 35 kHz near crop edges. No signal is yet selected, heard or logged as a confirmed hit. Do not confuse a persistent spectral peak with confirmed radio traffic. Preserve 2–3 Hz capture while adding the detector; monitor for slowdown.

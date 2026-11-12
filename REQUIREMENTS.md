@@ -16,9 +16,9 @@ A receive-only scanner running on rackio that surveys broad, overlapping RF spec
 | B04 | Accurate displayed sequential scan channel | GMRS 1/3/7 frequencies identified | **Verified v0.4** |
 | B05 | One open RTL device across retunes | Python persistent tuner remains open; ~3 ch/s observed | **Startup/retune verified v0.5** |
 | S01 | One usable wide IQ window at 462 MHz | FFT includes GMRS 1–7 simultaneously with measured CPU/sample rate | **Future** |
-| S02 | Adaptive, local noise floor | Baseline follows changes; spurs/edge bins excluded | **Future** |
-| S03 | Candidate extraction | Estimated center, occupied bandwidth and contrast; sensible duplicate grouping | **Future** |
-| S04 | Robust qualification | Persistence/hysteresis rejects idle noise and transient spurs | **Future** |
+| S02 | Adaptive, local noise floor | Baseline follows changes; spurs/edge bins excluded | **Basic implementation, calibration pending** |
+| S03 | Candidate extraction | Estimated center, occupied bandwidth and contrast; sensible duplicate grouping | **Experimental implementation, field test pending** |
+| S04 | Robust qualification | Persistence/hysteresis rejects idle noise and transient spurs | **Two-frame persistence added; spurious rejection unverified** |
 | S05 | Signal selection | Highest-ranked qualified candidate chosen, not just largest raw FFT bin | **Future** |
 | S06 | In-window NFM listening | Voice audio on rackio; accurate candidate/channel identification | **Future** |
 | S07 | End-of-activity logic | Correct hang/resume, HOLD, SKIP and no stuck receiver | **Future** |

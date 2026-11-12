@@ -10,7 +10,7 @@ S1 spectrum capture was field-tested in v0.6: **real CH1 peak and 2–3 FFT upda
 | --- | --- | --- |
 | S1 wideband IQ/FFT | Measured, previously verified | 462.650 MHz, 2.048 MS/s, visible CH1 peak, 2–3 updates/s |
 | S1 interface redesign | Committed | Large FFT display, GMRS zoom and real diagnostics; test 1280×400 |
-| S2 signal candidates | Future | Group peaks above adaptive local noise, reject DC/edge spurs and short impulses |
+| S2 signal candidates | **Code committed, rackio field test pending** | Detect FFT blobs at +10 dB relative to local floor and require 2 of 3 successive frames; validate CH1/CH7 PTT and idle false positives |
 | S3 selection | Future | Strongest qualified signal first, hysteresis/priorities |
 | S4 demod/audio | Future | Selected in-window NFM channel, rackio-local speakers, hang/resume |
 | S5 windows/banks | Future | 467 MHz GMRS then AM airband, overlapping spans, measured revisit delays |
@@ -29,3 +29,7 @@ S1 spectrum capture was field-tested in v0.6: **real CH1 peak and 2–3 FFT upda
 ## Historical results retained in Git history
 
 RTL_fm worked with walkie-talkie audio and squelch; Python/rtl_fm scanner ran ~1 channel/s, persistent frequency retunes ~3/s. Those prototypes were stepping stones rather than the product. An older spectrum view froze because a legacy watchdog was checking for nonexistent rtl_fm; the fix resulted in continuous 2–3 Hz FFT updates. The persistent pyrtlsdr wrapper was pinned to 0.2.91 to match rackio system librtlsdr.
+
+## v0.8 S2 detector — 2026-11-11
+
+Implemented `sdrbox/detector.py` (pure NumPy/SciPy) with coarse contiguous FFT-bin grouping, 10 dB contrast threshold, 3-bin minimum, 45 kHz maximum, provisional center DC and usable-edge guards, and a 2-of-3-frame candidate tracker. Spectrum worker reuses existing FFT and floor arrays; output includes `candidates` plus experimental detection method. Browser overlays candidate locations and lists up to two persistent candidates; no confirmed hits, audio, modulation classification or automatic selection. Added `tests/test_detector.py`, runnable without attached SDR via `python -m unittest discover -s tests`. **Awaiting hardware testing**; thresholds are provisional. No rate claims for S2 until measured. Stable spurs may still appear and require rejection using a longer background model.

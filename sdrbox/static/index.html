@@ -46,19 +46,20 @@
     <footer><span id="device">SIMULATOR</span><span id="audio">AUDIO: CONNECTING</span></footer>
   </div>
   <dialog id="info">
-    <h2>SDRbox v0.4</h2>
+    <h2>SDRbox v0.5</h2>
     <p id="info-mode">Connecting…</p>
-    <p>Managed scan tunes each GMRS 1–7 channel under Python control, tracks the tuned frequency, and logs squelch-open events. This is experimental: events are not calibrated RF measurements. Legacy scan remains available as fallback. Audio is on rackio only.</p>
+    <p>Persistent scan keeps the RTL-SDR open and retunes in Python, with experimental FM demodulation and RF contrast detection. The tested Python/rtl_fm scanner remains available as a fallback. Audio plays on rackio only.</p>
     <label for="profile">Receiver mode</label>
     <select id="profile">
-      <option value="MANAGED_1_7">Managed scan 1–7 (frequency + activity)</option>
+      <option value="PERSISTENT_1_7">Persistent RTL-SDR scan (experimental)</option>
+      <option value="MANAGED_1_7">Python / rtl_fm scan (tested fallback)</option>
       <option value="SCAN_1_7">Legacy scan 1–7 (rtl_fm hopping)</option>
       <option value="FIXED_1">Fixed GMRS 1 (squelch off)</option>
     </select>
     <label for="squelch">Scan squelch threshold: <output id="squelch-value">15</output></label>
     <input id="squelch" type="range" min="1" max="100" value="15">
     <p>Stop receiving before changing these settings. Low threshold = more sensitive to noise; adjust while testing your walkie-talkie.</p>
-    <p>HOLD and SKIP operate in managed scan mode. STOP releases hardware in all modes.</p>
+    <p>HOLD and SKIP work in both Python-managed modes. STOP releases hardware. The squelch slider currently applies only to rtl_fm-based scan profiles; persistent mode has an experimental fixed RF contrast threshold.</p>
     <button id="close-info">CLOSE</button>
   </dialog>
 </body>

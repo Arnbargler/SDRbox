@@ -1,33 +1,36 @@
-# SDRbox v0.4 — Python-managed GMRS scanning (experimental)
+# SDRbox v0.5 — persistent RTL-SDR experimental receiver
 
-**User verified:** v0.3 legacy rtl_fm multi-frequency scan works, with squelch 15 currently best for the existing GMRS test setup. **New v0.4 managed scanner awaits testing.**
+**Status:** v0.4 Python-controlled GMRS 1–7 scan was **field-verified** on rackio: ~1 channel/s, correct displayed frequencies and activity detection, local audio, automatic resumption. v0.5 adds an **experimental persistent SDR receiver**. No on-rack validation of v0.5 yet.
 
-The new **Managed scan 1–7** setting runs a Python channel scheduler with one single-frequency `rtl_fm` receiver per channel. Audio remains local on rackio, played by a persistent `aplay` process. Python reads the squelched PCM to identify candidate transmissions, updates the real tuned frequency, and logs genuine (but uncalibrated) squelch-open events. HOLD locks the current frequency; SKIP advances the scan. This is an early implementation, not yet optimized for fast revisits.
+## Install and launch over SSH
 
-## Run on rackio
-
-Stop previous Uvicorn with Ctrl+C and close GQRX. Then over SSH:
+Stop the previous Uvicorn server with Ctrl+C, close GQRX and any standalone RTL-SDR tools, then:
 
 ```bash
 cd ~/SDRbox
 git pull
 source ~/.venv/bin/activate
+python -m pip install -r requirements-persistent.txt
 python -m uvicorn sdrbox.main:app --host 0.0.0.0 --port 8080
 ```
 
-Open `http://rackio.local:8080` in Chrome, hard-refresh to reload JS, then open INFO. Select **Managed scan 1–7** and squelch **15**, close INFO, press SCAN. The active channel and **actual requested tuned MHz** should advance, not just show a generic range. Transmit on walkie-talkie Channel 1: when detection is successful it should pause, play voice on rackio, show SQUELCH OPEN and add a hit to Recent Activity. Release PTT; scanning resumes after roughly 0.9 seconds of silence. Try HOLD to remain on current channel and SKIP to advance. STOP releases USB receiver and audio subprocess.
+The new dependencies are `numpy`, `scipy`, `pyrtlsdr`. System `librtlsdr` is needed by pyrtlsdr; rackio already has rtl_test and rtl_fm, so the library is likely installed. To verify: `python -c "from rtlsdr import RtlSdr; print('RTL-SDR Python import OK')"`. The live app imports these only when the persistent profile starts, so failure doesn't prevent using the existing profile.
 
-## Known constraints
+Open `http://rackio.local:8080` from remote Chrome, refresh with Ctrl+Shift+R. In **INFO**, choose **Persistent RTL-SDR scan**, then press SCAN. Watch GMRS channel/frequency change without restarting rtl_fm. Local ALSA speaker audio should play transmissions from your walkie-talkie. Release PTT and check that it resumes; test STOP, HOLD/RESUME and SKIP.
 
-- This first Python scheduler **restarts rtl_fm on each channel**, so channel dwell and scan speed may be sluggish; radio acquisition/settling is not measured yet. Fast short transmissions may be missed. Upgrade later to a persistent SDR device with direct retuning.
-- Squelch-open events are inferred from nonzero decoded PCM; a hit represents probable activity and may include false positives or miss silent carrier events. Signal meter remains an activity indicator, not a measured dBm/RSSI value.
-- Only seven 462 MHz GMRS/FRS shared channels are currently scanned. No browser audio, no recording.
-- **Legacy scan 1–7** is the tested fast fallback. **Fixed GMRS 1** preserves unsquelched fixed-frequency reception.
-- The server should run as **one Uvicorn worker** without auto-reload. Browser windows don't own the receiver.
-- Keep on trusted home LAN; no authentication or Internet exposure.
+## Architecture and limitations
 
-If audio, scan cadence, detection or HOLD/SKIP behaves oddly, report the specific symptoms before changing thresholds. This version is deliberately a field-test candidate.
+- Opens exactly one `RtlSdr` USB handle, configures 1.024 MS/s with 30 dB requested gain, tunes `channel + 100 kHz` to avoid center DC, then digitally shifts the channel back to baseband.
+- SDR sampled in 32768-sample (~32 ms) chunks. NumPy/SciPy implement FFT relative channel power contrast, FM phase discrimination, audio filtering and rate conversion to 24 kHz. Local `aplay` remains the **only** audio output; no browser audio.
+- 0.38-second initial channel dwell plus tune/read overhead; 1.0-second activity hang. These are experimental defaults, not measured throughput. Absolute RSSI/dBm is **not** reported.
+- Detector currently uses fixed 5 dB start / 3 dB stay relative RF contrast thresholds. **The old squelch setting 15 has no equivalent meaning here** and adjusting the UI slider does not change persistent detection. We will calibrate the new threshold from actual observed reception before making it adjustable.
+- Real hits require RF contrast detection; false positives and misses are possible. The frequency displayed is the commanded channel, not a measured locked frequency. Scans only GMRS 1–7 for now.
+- No automatic kiosk/headless requirement. The server and scanner run while the SSH-launched Uvicorn process runs, independently of browsers. One worker only; never share hardware with GQRX.
 
-## v0.4 field test and squelch-resume fix (2026-11-11)
+## Fallback (important)
 
-User verified Python-owned scanner advances at approximately **one GMRS channel per second**, correctly stops on a Channel 1 walkie-talkie transmission and demodulates voice. **Bug observed:** after PTT release it remained on Channel 1 until SKIP. Fix committed: evaluate the activity hang timer on **every scan-loop iteration**, even when `rtl_fm` stops delivering PCM entirely after squelch closes. Expected resumption after ~1.1 s without meaningful decoded audio. This fix still requires rackio field verification. Squelch 15 remains the starting setting. If continual decoded noise keeps refreshing the timer, additional RF/squelch discrimination will be required.
+In INFO select **Python / rtl_fm scan** (`MANAGED_1_7`) after STOP. This is the existing **field-tested working v0.4 implementation**; it restarts rtl_fm each channel. **Legacy rtl_fm scan** (`SCAN_1_7`) and **Fixed GMRS 1** (`FIXED_1`) are also retained.
+
+If persistent scan fails to start or the audio sounds wrong, stop, select the proven Python/rtl_fm scan and report the server error. Do not change ten different settings at once.
+
+Trusted home LAN only; no authentication yet, never expose publicly.

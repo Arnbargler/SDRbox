@@ -101,3 +101,7 @@ Python managed scan module `sdrbox/scanner.py` coordinates GMRS 1–7 single-fre
 ## Managed scanner known issue (2026-11-11)
 
 v0.4 Python scanner advances at ~1 channel/s, and activity detection/audio on CH1 confirmed. It initially stuck receiving after PTT release until SKIP. Follow-up fix changes `scanner.py` to evaluate 1.1-second hang timeout even when no new PCM arrives (closed rtl_fm squelch might produce no chunks). **Not yet verified after fix.** Test auto resume first; if still stuck, inspect idle PCM/noise before altering squelch sensitivity.
+
+## v0.5 persistent receiver candidate
+
+GitHub now includes experimental `sdrbox/persistent.py` backed by `pyrtlsdr` and NumPy/SciPy (one device handle across GMRS 1–7 tune changes, local software NFM demod, RF contrast detection). It is selected by default as `PERSISTENT_1_7` but **has not been tested on rackio yet**. Install `requirements-persistent.txt`. Field-proven fallback remains `MANAGED_1_7` (Python channel control using rtl_fm, ~1 ch/sec, voice and auto-resume working). Persistent RF detector uses contrast thresholds 5/3 dB, not the old slider squelch 15. No remote audio. Review [RUNNING.md](RUNNING.md).

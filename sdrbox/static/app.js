@@ -16,11 +16,11 @@
     $("status").textContent = s.status;
     $("frequency").textContent = s.frequency_mhz == null ? "---.----" : Number(s.frequency_mhz).toFixed(4);
     $("channel").textContent = s.channel || "NO CHANNEL";
-    $("profile").value = s.scan_profile === "FIXED_1" ? "FIXED_1" : s.scan_profile === "SCAN_1_7" ? "SCAN_1_7" : "MANAGED_1_7";
+    $("profile").value = s.scan_profile === "FIXED_1" ? "FIXED_1" : s.scan_profile === "SCAN_1_7" ? "SCAN_1_7" : s.scan_profile === "MANAGED_1_7" ? "MANAGED_1_7" : "PERSISTENT_1_7";
     $("squelch").value = s.squelch ?? 15;
     $("squelch-value").textContent = s.squelch ?? 15;
     $("profile").disabled = !connected || s.mode !== "LIVE" || ["SCANNING","RECEIVING","HELD"].includes(s.status);
-    $("squelch").disabled = !connected || s.mode !== "LIVE" || ["SCANNING","RECEIVING","HELD"].includes(s.status);
+    $("squelch").disabled = !connected || s.mode !== "LIVE" || s.scan_profile === "PERSISTENT_1_7" || ["SCANNING","RECEIVING","HELD"].includes(s.status);
     $("modulation").textContent = s.modulation || "—";
     $("signal-value").textContent = s.mode === "LIVE" ? (s.activity ? "SQUELCH OPEN" : "SQUELCH CLOSED / UNKNOWN") : s.signal_percent + "% (DEMO)";
     $("signal-bar").style.width = s.mode === "LIVE" ? (s.activity ? "100%" : "0%") : (s.signal_percent ?? 0) + "%";
@@ -31,7 +31,7 @@
     $("message").textContent = s.message;
     $("device").textContent = s.device;
     $("scan").textContent = ["SCANNING", "RECEIVING", "HELD"].includes(s.status) ? "■ STOP" : "▶ SCAN";
-    $("skip").disabled = !connected || (s.mode === "LIVE" && (s.scan_profile !== "MANAGED_1_7" || !["SCANNING", "RECEIVING", "HELD"].includes(s.status)));
+    $("skip").disabled = !connected || (s.mode === "LIVE" && (!["MANAGED_1_7", "PERSISTENT_1_7"].includes(s.scan_profile) || !["SCANNING", "RECEIVING", "HELD"].includes(s.status)));
     $("hold").disabled = !connected || (s.mode === "LIVE" && s.scan_profile === "SCAN_1_7") || !["SCANNING", "RECEIVING", "HELD"].includes(s.status);
     $("hold").textContent = s.status === "HELD" ? "▶ RESUME" : "Ⅱ HOLD";
     buttons.forEach(b => {
@@ -86,7 +86,7 @@
   $("profile").addEventListener("change", () => send("set_scan_profile", {profile: $("profile").value}));
   $("squelch").addEventListener("change", () => send("set_squelch", {squelch: Number($("squelch").value)}));
   $("squelch").addEventListener("input", () => $("squelch-value").textContent = $("squelch").value);
-  $("settings").addEventListener("click", () => { $("info-mode").textContent = latest?.mode === "LIVE" ? "Managed scan 1–7 reports the frequency Python is tuning and creates squelch-derived activity events. Legacy scan leaves frequency unknown. HOLD and SKIP work in managed scan." : "Simulated scanning. No radio hardware or sound."; $("info").showModal(); });
+  $("settings").addEventListener("click", () => { $("info-mode").textContent = latest?.mode === "LIVE" ? "Persistent scan retains the USB receiver across channel changes. RF detection and in-process audio are experimental. Python/rtl_fm scan is the working fallback. HOLD/SKIP work in both Python modes." : "Simulated scanning. No radio hardware or sound."; $("info").showModal(); });
   $("close-info").addEventListener("click", () => $("info").close());
   function connect() {
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";

@@ -128,3 +128,7 @@ Real managed scanning runs ~1 channel/second and detects/demodulates a GMRS CH1 
 ## v0.4 auto-resume verified — 2026-11-11
 
 User confirmed the revised silence timeout is working better after the earlier stuck-on-channel bug. Managed scanning was observed at approximately 1 channel/second, and Channel 1 detection and audio already worked. Next recommended test: transmit on several GMRS channels, confirm accurate displayed frequency/hits, HOLD/SKIP, and correct resumption before replacing per-channel rtl_fm subprocesses with persistent tuner control. No measured scan latency or RSSI yet.
+
+## v0.5 persistent tuner candidate — 2026-11-11
+
+Added `sdrbox/persistent.py`: single `pyrtlsdr.RtlSdr` instance retained across retunes, fixed 1.024 MS/s IQ samples, frequency offset and mixing, NumPy/SciPy RF contrast detection, software NFM demodulation, 24 kHz local ALSA playback, web frequency/HOLD/SKIP callbacks. This is **not field-tested yet** and its detection threshold (5/3 dB) is unrelated to the known-good rtl_fm squelch 15. Kept `MANAGED_1_7` profile as tested fallback. New optional `requirements-persistent.txt` dependencies. Follow [RUNNING.md](RUNNING.md) and test startup, per-channel tuning, talkie audio, resume, and STOP cleanup. Tune RF thresholds and DSP using real results.

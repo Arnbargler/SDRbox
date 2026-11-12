@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .receiver import LocalGMRSReceiver
+from .scanner import ManagedScanner
 
 BASE = Path(__file__).resolve().parent
 BANKS = ("CB", "GMRS", "AIR", "AMB", "FIRE")
@@ -24,20 +25,55 @@ GMRS_CHANNELS = (
 )
 MODE = "SIMULATED" if os.getenv("SDRBOX_RECEIVER", "real").lower() == "sim" else "LIVE"
 receiver = LocalGMRSReceiver()
+scanner = None
 CLIENTS: set[WebSocket] = set()
 LOCK = asyncio.Lock()
 HITS = deque(maxlen=40)
 state = {
     "revision": 0, "mode": MODE, "status": "STOPPED",
-    "scan_profile": "SCAN_1_7" if MODE == "LIVE" else "SIM", "squelch": 15,
+    "scan_profile": "MANAGED_1_7" if MODE == "LIVE" else "SIM", "squelch": 15,
     "bank_enabled": {bank: bank == "GMRS" for bank in BANKS},
     "frequency_mhz": None, "channel": None, "modulation": "NFM",
     "signal_percent": None if MODE == "LIVE" else 0,
+    "activity": False,
     "device": "RTL-SDR / R820T · GMRS CH 1" if MODE == "LIVE" else "SIMULATOR · NO SDR CONNECTED",
     "audio": "LOCAL / RACKIO (when active)" if MODE == "LIVE" else "SIMULATION · NO AUDIO",
     "message": "Ready · GMRS 01" if MODE == "LIVE" else "Ready · simulation",
 }
 worker_task = None
+
+
+def scanner_callback(event, data):
+    # Runs on the scanner worker thread; schedule updates on the FastAPI event loop.
+    LOOP.call_soon_threadsafe(lambda: asyncio.create_task(scanner_event(event, data)))
+
+
+async def scanner_event(event, data):
+    async with LOCK:
+        if state["scan_profile"] != "MANAGED_1_7" or state["status"] in ("STOPPED", "ERROR"):
+            return
+        if event == "tuned":
+            channel, freq = data
+            state.update(channel=channel, frequency_mhz=freq, activity=False,
+                         status="HELD" if scanner._hold.is_set() else "SCANNING",
+                         message=f"Monitoring {channel}")
+        elif event == "activity_start":
+            state.update(activity=True, status="RECEIVING",
+                         message=f"Signal detected on {state['channel']}")
+            HITS.appendleft({"time": datetime.now(timezone.utc).isoformat(),
+                             "bank": "GMRS", "channel": state["channel"],
+                             "frequency_mhz": state["frequency_mhz"], "simulated": False})
+        elif event == "activity_end":
+            state.update(activity=False, status="HELD" if scanner._hold.is_set() else "SCANNING",
+                         message=f"Scanning after {state['channel']}")
+        elif event == "held":
+            state.update(status="HELD", message="Manual HOLD on current frequency")
+        elif event == "resumed":
+            state.update(status="SCANNING", message="Scan resumed")
+        elif event == "error":
+            state.update(status="ERROR", activity=False, audio="LOCAL AUDIO STOPPED", message=f"Scanner error: {data}"[:400])
+        state["revision"] += 1
+        await broadcast()
 
 
 def snapshot():
@@ -63,9 +99,10 @@ async def cycle():
         await asyncio.sleep(1 if MODE == "LIVE" else 1.5)
         async with LOCK:
             if MODE == "LIVE":
-                if state["status"] in ("RECEIVING", "HELD", "SCANNING") and not receiver.running:
+                if state["status"] in ("RECEIVING", "HELD", "SCANNING") and state["scan_profile"] != "MANAGED_1_7" and not receiver.running:
                     reason = receiver.failure()
                     await asyncio.to_thread(receiver.stop)
+        await asyncio.to_thread(scanner.stop)
                     state.update(status="ERROR", message=reason, audio="LOCAL AUDIO STOPPED")
                     state["revision"] += 1
                     await broadcast()
@@ -99,7 +136,9 @@ async def cycle():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global worker_task
+    global worker_task, scanner, LOOP
+    LOOP = asyncio.get_running_loop()
+    scanner = ManagedScanner(scanner_callback)
     worker_task = asyncio.create_task(cycle())
     try:
         yield
@@ -112,7 +151,7 @@ async def lifespan(app: FastAPI):
         await asyncio.to_thread(receiver.stop)
 
 
-app = FastAPI(title="SDRbox", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="SDRbox", version="0.4.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 
 
@@ -133,8 +172,8 @@ async def index():
 
 @app.get("/api/v1/health")
 async def health():
-    return {"ok": True, "mode": MODE, "receiver_connected": receiver.running if MODE == "LIVE" else False,
-            "local_audio_ready": receiver.running if MODE == "LIVE" else False,
+    return {"ok": True, "mode": MODE, "receiver_connected": (receiver.running or scanner.running) if MODE == "LIVE" else False,
+            "local_audio_ready": (receiver.running or scanner.running) if MODE == "LIVE" else False,
             "status": state["status"]}
 
 
@@ -166,33 +205,42 @@ async def command(payload: Command):
             if MODE == "LIVE":
                 if not state["bank_enabled"]["GMRS"]:
                     raise HTTPException(409, "Only GMRS is configured for live reception")
-                if not receiver.running:
+                managed = state["scan_profile"] == "MANAGED_1_7"
+                if not (scanner.running if managed else receiver.running):
                     try:
-                        await asyncio.to_thread(receiver.start,
-                            state["scan_profile"] == "SCAN_1_7", state["squelch"])
+                        if managed:
+                            await asyncio.to_thread(scanner.start, state["squelch"])
+                        else:
+                            await asyncio.to_thread(receiver.start,
+                                state["scan_profile"] == "SCAN_1_7", state["squelch"])
                         await asyncio.sleep(0.35)
-                        if not receiver.running:
-                            raise RuntimeError(receiver.failure())
+                        if not (scanner.running if managed else receiver.running):
+                            raise RuntimeError(scanner.error if managed else receiver.failure())
                     except Exception as exc:
                         await asyncio.to_thread(receiver.stop)
+                        await asyncio.to_thread(scanner.stop)
                         state.update(status="ERROR", audio="LOCAL AUDIO STOPPED",
                                      message=f"Could not start receiver: {exc}"[:450])
                         state["revision"] += 1
                         await broadcast()
                         raise HTTPException(503, state["message"]) from exc
-                scanning = state["scan_profile"] == "SCAN_1_7"
+                scanning = state["scan_profile"] != "FIXED_1"
+                managed = state["scan_profile"] == "MANAGED_1_7"
                 state.update(status="SCANNING" if scanning else "RECEIVING",
-                             channel="GMRS 01–07 · SCANNING" if scanning else "GMRS 01 · FIXED",
+                             channel="TUNING" if managed else ("GMRS 01–07 · SCANNING" if scanning else "GMRS 01 · FIXED"),
                              frequency_mhz=None if scanning else 462.5625,
+                             activity=False,
                              modulation="NFM", signal_percent=None,
-                             message=("Scanning GMRS 01–07 · squelch " + str(state["squelch"])
+                             message=(("Python channel scan · squelch " if managed else "Legacy rtl_fm scan · squelch ") + str(state["squelch"])
                                       if scanning else "Listening on GMRS 01 · squelch off"),
                              audio="LOCAL AUDIO ACTIVE")
             else:
                 state.update(status="SCANNING", message="Simulated scanning started")
         elif name == "scan_hold":
             if MODE == "LIVE" and state["scan_profile"] == "SCAN_1_7":
-                raise HTTPException(409, "Active frequency not exposed by rtl_fm scan; HOLD unavailable")
+                raise HTTPException(409, "Active frequency not exposed by legacy rtl_fm scan; HOLD unavailable")
+            if MODE == "LIVE" and state["scan_profile"] == "MANAGED_1_7":
+                await asyncio.to_thread(scanner.hold)
             if state["status"] not in ("SCANNING", "RECEIVING"):
                 raise HTTPException(409, "Start scanning or receiving first")
             state.update(status="HELD", message=("Holding GMRS 01 · local audio continues"
@@ -200,18 +248,26 @@ async def command(payload: Command):
         elif name == "scan_stop":
             if MODE == "LIVE":
                 await asyncio.to_thread(receiver.stop)
+                await asyncio.to_thread(scanner.stop)
                 state["audio"] = "LOCAL AUDIO STOPPED"
+                state["activity"] = False
             state.update(status="STOPPED", message="Stopped", signal_percent=None if MODE == "LIVE" else 0)
         elif name == "scan_skip":
             if MODE == "LIVE":
-                raise HTTPException(409, "Only GMRS Channel 1 is implemented; no next channel to skip to")
+                if state["scan_profile"] != "MANAGED_1_7" or state["status"] not in ("SCANNING", "RECEIVING", "HELD"):
+                    raise HTTPException(409, "SKIP available only during managed scanning")
+                scanner.skip()
+                state["message"] = "Skipping channel"
+                state["revision"] += 1
+                await broadcast()
+                return {"accepted": True, "revision": state["revision"], "request_id": payload.request_id}
             if state["status"] not in ("SCANNING", "HELD"):
                 raise HTTPException(409, "Start scanning first")
             state.update(status="SCANNING", message="Skipping · SIMULATED", signal_percent=0)
         elif name == "set_scan_profile":
-            if MODE != "LIVE" or payload.profile not in ("SCAN_1_7", "FIXED_1"):
-                raise HTTPException(422, "Select SCAN_1_7 or FIXED_1 in live mode")
-            if receiver.running:
+            if MODE != "LIVE" or payload.profile not in ("MANAGED_1_7", "SCAN_1_7", "FIXED_1"):
+                raise HTTPException(422, "Select MANAGED_1_7, SCAN_1_7 or FIXED_1")
+            if receiver.running or scanner.running:
                 raise HTTPException(409, "Stop the receiver before changing scan profile")
             state["scan_profile"] = payload.profile
             state.update(status="STOPPED", message="Profile selected · press SCAN",
@@ -219,7 +275,7 @@ async def command(payload: Command):
         elif name == "set_squelch":
             if MODE != "LIVE" or payload.squelch is None or not 1 <= payload.squelch <= 100:
                 raise HTTPException(422, "Squelch must be 1–100")
-            if receiver.running:
+            if receiver.running or scanner.running:
                 raise HTTPException(409, "Stop receiver before changing squelch")
             state["squelch"] = payload.squelch
             state["message"] = "Squelch set · press SCAN"
@@ -232,6 +288,7 @@ async def command(payload: Command):
             if not any(state["bank_enabled"].values()) and state["status"] in ("RECEIVING", "HELD", "SCANNING"):
                 if MODE == "LIVE":
                     await asyncio.to_thread(receiver.stop)
+                    await asyncio.to_thread(scanner.stop)
                     state["audio"] = "LOCAL AUDIO STOPPED"
                 state.update(status="STOPPED", message="All banks disabled")
         else:

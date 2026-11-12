@@ -38,7 +38,7 @@ state = {
     "frequency_mhz": None, "channel": None, "modulation": "NFM",
     "signal_percent": None if MODE == "LIVE" else 0,
     "activity": False,
-    "device": "RTL-SDR / R820T · GMRS CH 1" if MODE == "LIVE" else "SIMULATOR · NO SDR CONNECTED",
+    "device": "RTL-SDR / R820T · GMRS 1–7" if MODE == "LIVE" else "SIMULATOR · NO SDR CONNECTED",
     "audio": "LOCAL / RACKIO (when active)" if MODE == "LIVE" else "SIMULATION · NO AUDIO",
     "message": "Ready · GMRS 01" if MODE == "LIVE" else "Ready · simulation",
 }
@@ -180,8 +180,8 @@ async def index():
 
 @app.get("/api/v1/health")
 async def health():
-    return {"ok": True, "mode": MODE, "receiver_connected": (receiver.running or scanner.running or persistent.running or persistent.running) if MODE == "LIVE" else False,
-            "local_audio_ready": (receiver.running or scanner.running) if MODE == "LIVE" else False,
+    return {"ok": True, "mode": MODE, "receiver_connected": (receiver.running or scanner.running or persistent.running) if MODE == "LIVE" else False,
+            "local_audio_ready": (receiver.running or scanner.running or persistent.running) if MODE == "LIVE" else False,
             "status": state["status"]}
 
 

@@ -88,7 +88,12 @@ function render(s){
  $("sensitivity").value=String(s.threshold_db ?? 15);
  $("sensitivity-value").textContent="+"+(s.threshold_db ?? 15)+" dB";
  $("audio-status").textContent=s.audio?.startsWith("ERROR:")?"ERROR":s.audio?.includes("ACTIVE")?"RECEIVING":s.audio?.includes("STOPPED")?"STOPPED":"MUTED";
- $("audio-detail").textContent=s.audio?.startsWith("ERROR:")?s.audio:(s.spectrum?.audio_gate ? "Gate "+s.spectrum.audio_gate+" · rackio 24 kHz NFM" : "Rackio speaker · 24 kHz NFM");
+ const diag=s.spectrum?.audio_diagnostics;
+ $("audio-detail").title=diag ? "Peak IQ interval "+diag.max_iq_interval_ms+" ms; max DSP "+diag.max_demod_ms+" ms; ALSA writer gaps "+diag.max_writer_gap_ms+" ms; queued "+diag.queued_ms+" ms; drops "+diag.dropped_chunks+"; slow writes "+diag.slow_writes : "";
+ $("audio-detail").textContent=s.audio?.startsWith("ERROR:")?s.audio:
+   diag && s.spectrum?.audio_gate
+   ? "Gate "+s.spectrum.audio_gate+" · IQ "+diag.max_iq_interval_ms+"ms · Q "+diag.queued_ms+"ms · drop "+diag.dropped_chunks
+   : "Rackio speaker · 24 kHz NFM";
  if(s.spectrum){
    const sp=s.spectrum;
    const selection=sp.selection || {status:"SEARCHING",frequency_mhz:null};

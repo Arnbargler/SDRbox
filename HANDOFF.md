@@ -76,3 +76,8 @@ Repo: <https://github.com/Arnbargler/SDRbox>
 The user reports the cloned SDRbox v0.1 simulator starts and that the normal browser UI looks and functions well. The server/API/UI are running on rackio; live RTL-SDR reception and audio are **not** implemented. Local + remote browsers are the target; a simultaneous two-browser synchronization test is still worth checking.
 
 `rtl_test -t` on rackio detected one Realtek RTL2838UHIDIR (SN 00000001) with Rafael Micro R820T, 29 gain options (0–49.6 dB), sample rate selected 2048000 S/s. It also logged `[R82XX] PLL not locked!` and `No E4000 tuner found, aborting.` The latter is expected for non-E4000 tuners and does not invalidate identification; the former alone does not establish hardware failure. See [HARDWARE.md](HARDWARE.md). Next: real GMRS NFM walkie-talkie reception and **local** rackio audio, then scanner integration; no remote audio yet.
+
+
+## Confirmed live GMRS NFM test — 2026-11-11
+
+Walkie-talkie Channel 1 (462.5625 MHz) successfully received using standalone `rtl_fm` piped into local `aplay` at 24 kHz, 30 dB requested tuner gain, software squelch disabled. Intelligible audio with slight latency. This is a verified **standalone RF/audio test**, not yet integrated into SDRbox. Next: incorporate rtl_fm/ALSA as the first radio backend, preserve simulation option; prioritize stable start/stop, shared status, cleanup on exit, and explicit AUDIO LOCAL indicator.

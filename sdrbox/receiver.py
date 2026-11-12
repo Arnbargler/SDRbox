@@ -1,6 +1,6 @@
-"""Supervised local rtl_fm -> aplay pipeline for GMRS Channel 1.
+"""Supervised local rtl_fm -> aplay pipeline for fixed GMRS 1 or GMRS 1–7 scan.
 
-No browser audio, IQ streaming, real signal detection or channel hopping.
+No browser audio, IQ streaming or externally reported channel/activity detection.
 """
 import os
 import shutil
@@ -8,7 +8,8 @@ import signal
 import subprocess
 import tempfile
 
-FREQUENCY_HZ = 462562500
+GMRS_FREQUENCIES_HZ = (462562500, 462587500, 462612500, 462637500,
+                       462662500, 462687500, 462712500)
 
 
 class LocalGMRSReceiver:
@@ -23,7 +24,7 @@ class LocalGMRSReceiver:
         return (self.receiver is not None and self.player is not None
                 and self.receiver.poll() is None and self.player.poll() is None)
 
-    def start(self):
+    def start(self, scan=False, squelch=30):
         if self.running:
             return
         self.stop()
@@ -32,11 +33,19 @@ class LocalGMRSReceiver:
                 raise RuntimeError(f"Missing executable: {binary}")
         self.radio_log = tempfile.TemporaryFile(mode="w+t")
         self.audio_log = tempfile.TemporaryFile(mode="w+t")
+        if scan and not 1 <= squelch <= 100:
+            raise ValueError("Scanning requires squelch 1–100")
+        frequencies = GMRS_FREQUENCIES_HZ if scan else GMRS_FREQUENCIES_HZ[:1]
+        args = ["rtl_fm", "-d", "0"]
+        for frequency in frequencies:
+            args.extend(["-f", str(frequency)])
+        args.extend(["-M", "fm", "-s", "24000", "-r", "24000",
+                     "-g", "30", "-l", str(squelch if scan else 0)])
+        if scan:
+            args.extend(["-t", "5"])
         try:
             self.receiver = subprocess.Popen(
-                ["rtl_fm", "-d", "0", "-f", str(FREQUENCY_HZ),
-                 "-M", "fm", "-s", "24000", "-r", "24000",
-                 "-g", "30", "-l", "0"],
+                args,
                 stdout=subprocess.PIPE,
                 stderr=self.radio_log,
                 start_new_session=True,

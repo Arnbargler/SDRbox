@@ -4,7 +4,7 @@ SDRbox is a **receive-only, scanner-first radio appliance** built around a Dell 
 
 **2026-11-08 hardware decision:** the upper 1U display has been **removed**. There is now **one local 2U touchscreen, 1280×400 pixels**, for both information and controls. The web-server architecture remains unchanged.
 
-> **Status (2026-11-11):** v0.2 live GMRS Channel 1 receiver integration committed, **awaiting first on-rack test**. Chrome controls `rtl_fm → aplay` audio on rackio through the server; simulation remains optional. No real channel scanning, squelch, hit detection or browser audio yet.
+> **Status (2026-11-11):** v0.3 GMRS 1–7 squelch-scanning integration committed, **awaiting on-rack field test** (v0.2 fixed Channel 1 reception already worked). Chrome controls `rtl_fm → aplay` audio on rackio through the server; simulation remains optional. No reliable active-channel readout, hit detection or browser audio yet.
 
 ## Selected design: photo option #2
 

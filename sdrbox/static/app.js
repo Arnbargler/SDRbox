@@ -16,6 +16,11 @@
     $("status").textContent = s.status;
     $("frequency").textContent = s.frequency_mhz == null ? "---.----" : Number(s.frequency_mhz).toFixed(4);
     $("channel").textContent = s.channel || "NO CHANNEL";
+    $("profile").value = s.scan_profile === "FIXED_1" ? "FIXED_1" : "SCAN_1_7";
+    $("squelch").value = s.squelch ?? 30;
+    $("squelch-value").textContent = s.squelch ?? 30;
+    $("profile").disabled = !connected || s.mode !== "LIVE" || ["SCANNING","RECEIVING","HELD"].includes(s.status);
+    $("squelch").disabled = !connected || s.mode !== "LIVE" || ["SCANNING","RECEIVING","HELD"].includes(s.status);
     $("modulation").textContent = s.modulation || "—";
     $("signal-value").textContent = s.signal_percent == null ? "NOT MEASURED" : s.signal_percent + "% (DEMO)";
     $("signal-bar").style.width = (s.signal_percent ?? 0) + "%";
@@ -27,7 +32,7 @@
     $("device").textContent = s.device;
     $("scan").textContent = ["SCANNING", "RECEIVING", "HELD"].includes(s.status) ? "■ STOP" : "▶ SCAN";
     $("skip").disabled = !connected || s.mode === "LIVE";
-    $("hold").disabled = !connected || !["SCANNING", "RECEIVING"].includes(s.status);
+    $("hold").disabled = !connected || (s.mode === "LIVE" && s.scan_profile === "SCAN_1_7") || !["SCANNING", "RECEIVING"].includes(s.status);
     buttons.forEach(b => {
       const enabled = !!s.bank_enabled[b.dataset.bank];
       b.classList.toggle("active", enabled);
@@ -77,7 +82,10 @@
   $("scan").addEventListener("click", () => send(["SCANNING", "RECEIVING", "HELD"].includes(latest?.status) ? "scan_stop" : "scan_start"));
   $("hold").addEventListener("click", () => send("scan_hold"));
   $("skip").addEventListener("click", () => send("scan_skip"));
-  $("settings").addEventListener("click", () => { $("info-mode").textContent = latest?.mode === "LIVE" ? "Live GMRS Channel 1 on rackio speakers. No signal meter, squelch, activity detection or channel scanning yet." : "Simulated scanning. No radio hardware or sound."; $("info").showModal(); });
+  $("profile").addEventListener("change", () => send("set_scan_profile", {profile: $("profile").value}));
+  $("squelch").addEventListener("change", () => send("set_squelch", {squelch: Number($("squelch").value)}));
+  $("squelch").addEventListener("input", () => $("squelch-value").textContent = $("squelch").value);
+  $("settings").addEventListener("click", () => { $("info-mode").textContent = latest?.mode === "LIVE" ? "Live GMRS receiver. Scan 1–7 uses rtl_fm squelch-controlled hopping; exact active channel and hits are not reported. HOLD is unavailable during scan." : "Simulated scanning. No radio hardware or sound."; $("info").showModal(); });
   $("close-info").addEventListener("click", () => $("info").close());
   function connect() {
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";

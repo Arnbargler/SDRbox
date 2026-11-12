@@ -1,36 +1,31 @@
-# Running SDRbox v0.2 — GMRS Channel 1 live receiver
+# Running SDRbox v0.3 — GMRS channels 1–7
 
-**Status:** Live receiver integration committed, awaiting user's first test on rackio. It is not an automatic scanner yet. In live mode, SCAN starts the previously validated `rtl_fm` → `aplay` pipeline at **462.5625 MHz** and audio plays **on rackio**, not in remote Chrome. Stop releases both subprocesses. HOLD retains the frequency and continues playback (there is no channel-hopping to pause yet). SKIP and other live banks are intentionally disabled. No trustworthy signal strength or hit history is available yet. WebSocket synchronizes browser control/status across the LAN.
+The working v0.2 Channel 1 local-audio pipeline is retained as **Fixed GMRS 1** mode. This v0.3 change adds **scan GMRS 1–7** using native `rtl_fm` multi-`-f` scanning, `-l` squelch, and `-t 5` squelch delay. **Awaiting rackio field validation.**
 
-## Update/install on rackio (SSH is fine)
+## Start
+
+From SSH into rackio, close GQRX and stop any previous server with Ctrl+C:
 
 ```bash
 cd ~/SDRbox
 git pull
 source ~/.venv/bin/activate
-python -m pip install -r requirements.txt
-which rtl_fm aplay
 python -m uvicorn sdrbox.main:app --host 0.0.0.0 --port 8080
 ```
 
-Important: stop the previous server (Ctrl+C) and close GQRX and standalone `rtl_fm` tests **before** launching. Use a single Uvicorn process; don't enable `--reload` or multiple workers while controlling the sole SDR. The known-good external command is:
+Open `http://rackio.local:8080` in Chrome on your desktop, or `http://localhost:8080` on rackio. Audio plays **only on rackio**.
 
-```bash
-rtl_fm -d 0 -f 462562500 -M fm -s 24000 -r 24000 -g 30 -l 0 | aplay -r 24000 -f S16_LE -c 1
-```
+## Test
 
-Open **http://localhost:8080** in the rack's full Chrome browser or **http://rackio.local:8080** on other home-LAN devices. The actual local audio plays on rackio even if the browser is remote. Click SCAN and test the walkie-talkie on GMRS/FRS channel 1. With squelch disabled, expect noise between transmissions. Click STOP, verify audio ends, then start it again. With two browsers open, both should reflect the same radio state. Exit with Ctrl+C; the server should stop its subprocesses.
+1. Open **INFO**, choose **Scan GMRS 1–7**, set squelch (initial value **30**), then close INFO.
+2. Press **SCAN**. The backend opens one rtl_fm instance with seven frequencies, and sends its decoded audio to rackio's local aplay process.
+3. Transmit briefly on GMRS 1 with your walkie-talkie; it should open squelch and be audible. Release PTT, and check that noise is muted and the receiver returns to hopping.
+4. Press **STOP** to release the device. If the receiver misses a strong transmission, reduce squelch (e.g. 15), then press SCAN again. If noise holds it open, increase squelch (e.g. 45). These are **starting experiments**, not calibrated RF levels.
+5. To compare against the known-good v0.2 baseline, stop, select **Fixed GMRS 1**, then SCAN. Fixed mode has `-l 0` (no squelch).
+6. Verify start/stop multiple times and in a second browser if desired.
 
-If a receiver is busy, audio device is unavailable or processes exit, the API/UI should report an error. For debugging inspect `/api/v1/health` and the state API. If the old server is already running on port 8080, stop it first.
+Only the **GMRS 1–7 simplex/interstitial 462 MHz frequencies** are included at this stage. More channels follow after empirical testing. In scan mode **no exact active frequency is reported by rtl_fm**, so UI displays channel range and no specific MHz number. No false activity hits or signal meter. HOLD and SKIP are disabled in scan mode; fixed mode HOLD maintains reception. No remote audio.
 
-## Simulated fallback
+Use **one** Uvicorn worker; no `--reload`, no kiosk requirement. To revert to simulation: `SDRBOX_RECEIVER=sim python -m uvicorn sdrbox.main:app --host 0.0.0.0 --port 8080`.
 
-```bash
-SDRBOX_RECEIVER=sim python -m uvicorn sdrbox.main:app --host 0.0.0.0 --port 8080
-```
-
-This does **not** open the NESDR or play sound. GMRS demo channels advance and hits are labelled as simulated.
-
-## Boundaries
-
-Trusted home LAN only; no authentication is implemented. Do not expose/port-forward this service to the public Internet. No remote-browser audio, digital demodulation, automatic channel scanning, real signal detection, recorded hits, calibrated strength meter, service autostart or kiosk requirement. Only one receiver and one Uvicorn worker. Keep real-world RX tests on permitted frequencies and comply with local radio rules.
+This is an unauthenticated trusted-home-LAN prototype. Never port-forward. Squelch and hop speed are dependent on signal strength/noise and actual rtl_fm version; capture field observations before tuning further.

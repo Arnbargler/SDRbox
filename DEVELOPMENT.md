@@ -108,3 +108,7 @@ Dell specs; active XRandR monitor identity after removal; single-panel touch; ac
 ## v0.2 initial integration — 2026-11-11
 
 Committed live GMRS Channel 1 fixed-frequency receiver using supervised `rtl_fm` → `aplay` child processes, invoked by existing API SCAN/STOP and heard through rackio-local audio only. HOLD retains live reception; SKIP and other banks disabled until multi-channel support. WebSocket state is shared across local and remote browsers. No RF-derived meter, squelch or real activity logging yet; simulated backend remains selectable with `SDRBOX_RECEIVER=sim`. **Awaiting first rackio field test**, not yet verified running in user hardware. See [RUNNING.md](RUNNING.md).
+
+## v0.3 candidate — 2026-11-11
+
+Implemented native `rtl_fm` multi-frequency GMRS 1–7 squelch/hopping (`-l` configurable 1–100, `-t 5`) with browser INFO settings and retained fixed Channel 1 fallback. No active-channel attribution, RF signal meter or hit log; HOLD/SKIP disabled for scanning because rtl_fm provides no reliable active-frequency reporting. **Committed but not yet tested on rackio.** See [RUNNING.md](RUNNING.md).

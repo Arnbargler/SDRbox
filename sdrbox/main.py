@@ -1,4 +1,4 @@
-"""SDRbox v0.2: one browser-controlled GMRS receiver; simulation optional."""
+"""SDRbox v0.3: GMRS channel scan via rtl_fm; simulator optional."""
 import asyncio
 import os
 from collections import deque
@@ -29,6 +29,7 @@ LOCK = asyncio.Lock()
 HITS = deque(maxlen=40)
 state = {
     "revision": 0, "mode": MODE, "status": "STOPPED",
+    "scan_profile": "SCAN_1_7" if MODE == "LIVE" else "SIM", "squelch": 30,
     "bank_enabled": {bank: bank == "GMRS" for bank in BANKS},
     "frequency_mhz": None, "channel": None, "modulation": "NFM",
     "signal_percent": None if MODE == "LIVE" else 0,
@@ -62,7 +63,7 @@ async def cycle():
         await asyncio.sleep(1 if MODE == "LIVE" else 1.5)
         async with LOCK:
             if MODE == "LIVE":
-                if state["status"] in ("RECEIVING", "HELD") and not receiver.running:
+                if state["status"] in ("RECEIVING", "HELD", "SCANNING") and not receiver.running:
                     reason = receiver.failure()
                     await asyncio.to_thread(receiver.stop)
                     state.update(status="ERROR", message=reason, audio="LOCAL AUDIO STOPPED")
@@ -111,7 +112,7 @@ async def lifespan(app: FastAPI):
         await asyncio.to_thread(receiver.stop)
 
 
-app = FastAPI(title="SDRbox", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="SDRbox", version="0.3.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 
 
@@ -119,6 +120,8 @@ class Command(BaseModel):
     command: str
     bank: str | None = None
     enabled: bool | None = None
+    profile: str | None = None
+    squelch: int | None = None
     request_id: str | None = Field(default=None, max_length=80)
 
 
@@ -165,7 +168,8 @@ async def command(payload: Command):
                     raise HTTPException(409, "Only GMRS is configured for live reception")
                 if not receiver.running:
                     try:
-                        await asyncio.to_thread(receiver.start)
+                        await asyncio.to_thread(receiver.start,
+                            state["scan_profile"] == "SCAN_1_7", state["squelch"])
                         await asyncio.sleep(0.35)
                         if not receiver.running:
                             raise RuntimeError(receiver.failure())
@@ -176,13 +180,19 @@ async def command(payload: Command):
                         state["revision"] += 1
                         await broadcast()
                         raise HTTPException(503, state["message"]) from exc
-                state.update(status="RECEIVING", channel="GMRS 01", frequency_mhz=462.5625,
+                scanning = state["scan_profile"] == "SCAN_1_7"
+                state.update(status="SCANNING" if scanning else "RECEIVING",
+                             channel="GMRS 01–07 · SCANNING" if scanning else "GMRS 01 · FIXED",
+                             frequency_mhz=None if scanning else 462.5625,
                              modulation="NFM", signal_percent=None,
-                             message="Listening on GMRS 01 · local speaker · no squelch",
+                             message=("Scanning GMRS 01–07 · squelch " + str(state["squelch"])
+                                      if scanning else "Listening on GMRS 01 · squelch off"),
                              audio="LOCAL AUDIO ACTIVE")
             else:
                 state.update(status="SCANNING", message="Simulated scanning started")
         elif name == "scan_hold":
+            if MODE == "LIVE" and state["scan_profile"] == "SCAN_1_7":
+                raise HTTPException(409, "Active frequency not exposed by rtl_fm scan; HOLD unavailable")
             if state["status"] not in ("SCANNING", "RECEIVING"):
                 raise HTTPException(409, "Start scanning or receiving first")
             state.update(status="HELD", message=("Holding GMRS 01 · local audio continues"
@@ -198,6 +208,21 @@ async def command(payload: Command):
             if state["status"] not in ("SCANNING", "HELD"):
                 raise HTTPException(409, "Start scanning first")
             state.update(status="SCANNING", message="Skipping · SIMULATED", signal_percent=0)
+        elif name == "set_scan_profile":
+            if MODE != "LIVE" or payload.profile not in ("SCAN_1_7", "FIXED_1"):
+                raise HTTPException(422, "Select SCAN_1_7 or FIXED_1 in live mode")
+            if receiver.running:
+                raise HTTPException(409, "Stop the receiver before changing scan profile")
+            state["scan_profile"] = payload.profile
+            state.update(status="STOPPED", message="Profile selected · press SCAN",
+                         channel=None, frequency_mhz=None)
+        elif name == "set_squelch":
+            if MODE != "LIVE" or payload.squelch is None or not 1 <= payload.squelch <= 100:
+                raise HTTPException(422, "Squelch must be 1–100")
+            if receiver.running:
+                raise HTTPException(409, "Stop receiver before changing squelch")
+            state["squelch"] = payload.squelch
+            state["message"] = "Squelch set · press SCAN"
         elif name == "set_bank_enabled":
             if payload.bank not in BANKS or payload.enabled is None:
                 raise HTTPException(422, "Valid bank and enabled boolean required")

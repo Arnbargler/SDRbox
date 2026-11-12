@@ -1,4 +1,4 @@
-"""SDRbox spectrum-first S3: wideband IQ FFT, RF candidates and selection."""
+"""SDRbox spectrum-first S4: FFT, GMRS selection and local NFM audio."""
 import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -6,8 +6,8 @@ from urllib.parse import urlparse
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
-from .spectrum import SpectrumMonitor
+from pydantic import BaseModel, Field
+from .spectrum import SpectrumMonitor, DEFAULT_THRESHOLD_DB
 
 BASE = Path(__file__).resolve().parent
 CLIENTS: set[WebSocket] = set()
@@ -17,7 +17,7 @@ loop = None
 state = {"revision": 0, "status": "STOPPED", "mode": "LIVE_SPECTRUM",
          "window": "GMRS 462", "spectrum": None,
          "message": "Ready for wideband IQ capture",
-         "audio": "OFF — S1 diagnostics only"}
+         "audio": "LOCAL AUDIO MUTED", "threshold_db": DEFAULT_THRESHOLD_DB}
 
 def snapshot():
     return dict(state)
@@ -38,9 +38,11 @@ async def spectrum_event(event, data):
         if state["status"] != "SCANNING":
             return
         if event == "spectrum":
-            state.update(spectrum=data, message="Receiving live wideband IQ")
+            state.update(spectrum=data, audio=data.get("audio", "LOCAL AUDIO MUTED"),
+                         message="Wideband IQ · GMRS in-window NFM reception")
         elif event == "spectrum_error":
-            state.update(status="ERROR", spectrum=None, message=f"Receiver error: {data}"[:400])
+            state.update(status="ERROR", spectrum=None, audio="LOCAL AUDIO STOPPED",
+                         message=f"Receiver error: {data}"[:400])
         else:
             return
         state["revision"] += 1
@@ -61,11 +63,12 @@ async def lifespan(app: FastAPI):
         await asyncio.to_thread(monitor.stop)
         loop = None
 
-app = FastAPI(title="SDRbox Spectrum Monitor", version="0.9.0", lifespan=lifespan)
+app = FastAPI(title="SDRbox Spectrum Monitor", version="1.0.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 
 class Command(BaseModel):
     command: str
+    threshold_db: float | None = Field(default=None, ge=8, le=30)
 
 @app.get("/")
 @app.get("/control")
@@ -76,7 +79,8 @@ async def index():
 async def health():
     return {"ok": True, "mode": state["mode"], "status": state["status"],
             "receiver_connected": bool(monitor and monitor.running),
-            "local_audio_ready": False}
+            "local_audio_ready": bool(monitor and monitor.running and state["audio"] != "LOCAL AUDIO STOPPED"
+                                      and not state["audio"].startswith("ERROR:"))}
 
 @app.get("/api/v1/state")
 async def get_state():
@@ -85,7 +89,13 @@ async def get_state():
 @app.post("/api/v1/commands")
 async def command(payload: Command):
     async with LOCK:
-        if payload.command == "scan_start":
+        if payload.command == "set_sensitivity":
+            if payload.threshold_db is None:
+                raise HTTPException(422, "threshold_db must be between 8 and 30")
+            monitor.set_threshold(payload.threshold_db)
+            state["threshold_db"] = payload.threshold_db
+            state["message"] = f"Minimum RF contrast set to +{payload.threshold_db:g} dB"
+        elif payload.command == "scan_start":
             if not monitor.running:
                 state.update(status="SCANNING", spectrum=None, message="Opening RTL-SDR…")
                 state["revision"] += 1
@@ -109,9 +119,10 @@ async def command(payload: Command):
                     state["revision"] += 1
                     await broadcast()
                     raise HTTPException(503, state["message"]) from exc
-            state.update(status="STOPPED", spectrum=None, message="Receiver stopped")
+            state.update(status="STOPPED", spectrum=None,
+                         audio="LOCAL AUDIO STOPPED", message="Receiver stopped")
         else:
-            raise HTTPException(422, "Only START and STOP are supported in spectrum mode")
+            raise HTTPException(422, "Supported commands: scan_start, scan_stop, set_sensitivity")
         state["revision"] += 1
         await broadcast()
         return {"accepted": True, "revision": state["revision"]}

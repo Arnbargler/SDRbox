@@ -34,3 +34,18 @@ In INFO select **Python / rtl_fm scan** (`MANAGED_1_7`) after STOP. This is the 
 If persistent scan fails to start or the audio sounds wrong, stop, select the proven Python/rtl_fm scan and report the server error. Do not change ten different settings at once.
 
 Trusted home LAN only; no authentication yet, never expose publicly.
+
+## Library compatibility fix — 2026-11-11
+
+First persistent startup on rackio failed with `AttributeError: /lib/x86_64-linux-gnu/librtlsdr.so.2: undefined symbol: rtlsdr_set_dithering`. This is a Python-wrapper/C-library API mismatch, **not** a device detection fault: current pyrtlsdr expects the optional dithering symbol absent from system Osmocom librtlsdr. We deliberately retain the working system radio library and pin `pyrtlsdr==0.2.91` with `setuptools<82` in `requirements-persistent.txt` instead of rebuilding/replacing librtlsdr. The downgrade is a proposed compatibility remedy and is not yet tested on rackio.
+
+From `~/SDRbox`, with `~/.venv` activated and old server stopped:
+
+```bash
+git pull
+python -m pip install --upgrade --force-reinstall 'pyrtlsdr==0.2.91' 'setuptools<82'
+python -c 'from rtlsdr import RtlSdr; print("Python SDR wrapper imports OK")'
+python -m uvicorn sdrbox.main:app --host 0.0.0.0 --port 8080
+```
+
+If the import still fails, collect `python -m pip show pyrtlsdr setuptools` and the exact traceback. No `sudo pip` or replacement of system shared libraries.

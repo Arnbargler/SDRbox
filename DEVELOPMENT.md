@@ -132,3 +132,7 @@ User confirmed the revised silence timeout is working better after the earlier s
 ## v0.5 persistent tuner candidate — 2026-11-11
 
 Added `sdrbox/persistent.py`: single `pyrtlsdr.RtlSdr` instance retained across retunes, fixed 1.024 MS/s IQ samples, frequency offset and mixing, NumPy/SciPy RF contrast detection, software NFM demodulation, 24 kHz local ALSA playback, web frequency/HOLD/SKIP callbacks. This is **not field-tested yet** and its detection threshold (5/3 dB) is unrelated to the known-good rtl_fm squelch 15. Kept `MANAGED_1_7` profile as tested fallback. New optional `requirements-persistent.txt` dependencies. Follow [RUNNING.md](RUNNING.md) and test startup, per-channel tuning, talkie audio, resume, and STOP cleanup. Tune RF thresholds and DSP using real results.
+
+## v0.5 initial blocker — 2026-11-11
+
+Persistent backend's first on-rack attempt failed: `undefined symbol: rtlsdr_set_dithering` from `/lib/x86_64-linux-gnu/librtlsdr.so.2`. Mismatch between newer pyrtlsdr and system Osmocom librtlsdr. Proposed fix pinned `pyrtlsdr==0.2.91` and `setuptools<82` in optional requirements, preserving known-good GQRX and rtl_fm system libraries. **Not yet verified after pinning.**

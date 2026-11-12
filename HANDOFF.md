@@ -105,3 +105,7 @@ v0.4 Python scanner advances at ~1 channel/s, and activity detection/audio on CH
 ## v0.5 persistent receiver candidate
 
 GitHub now includes experimental `sdrbox/persistent.py` backed by `pyrtlsdr` and NumPy/SciPy (one device handle across GMRS 1–7 tune changes, local software NFM demod, RF contrast detection). It is selected by default as `PERSISTENT_1_7` but **has not been tested on rackio yet**. Install `requirements-persistent.txt`. Field-proven fallback remains `MANAGED_1_7` (Python channel control using rtl_fm, ~1 ch/sec, voice and auto-resume working). Persistent RF detector uses contrast thresholds 5/3 dB, not the old slider squelch 15. No remote audio. Review [RUNNING.md](RUNNING.md).
+
+## v0.5 Python wrapper mismatch on rackio
+
+Persistent scan initially errored `AttributeError: /lib/x86_64-linux-gnu/librtlsdr.so.2: undefined symbol: rtlsdr_set_dithering`. Newer pyrtlsdr references this API, not present in rackio's system librtlsdr. Optional requirements now pin `pyrtlsdr==0.2.91` and `setuptools<82` to preserve working C driver; awaiting field verification. See RUNNING.md.

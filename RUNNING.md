@@ -1,6 +1,6 @@
-# SDRbox v0.9 — spectrum, candidates and S3 signal selection
+# SDRbox v1.0 — spectrum, sensitivity and rackio-local NFM audio
 
-**Only one mode:** live fixed-window FFT capture with S2 spectral candidates and experimental S3 selection; no audio or radio retuning. No traditional scanner profiles, squelch slider, HOLD/SKIP, audio, or activity logs.
+**Only one mode:** fixed-window FFT capture, spectral candidates, S3 selected GMRS signal, and **experimental S4 local speaker audio**. No tuner retuning. No traditional scanner profiles, squelch slider, HOLD/SKIP, audio, or activity logs.
 
 Stop any old Uvicorn server with Ctrl+C, and close GQRX or other radio apps. Then on rackio:
 
@@ -38,3 +38,13 @@ These are **experimental candidates**, not voice/GMRS classification. The detect
 ## Test S3 signal selection
 
 Run offline tests: `python -m unittest discover -s tests`. In Chrome use Ctrl+Shift+R and START CAPTURE. The formerly raw strongest-bin readout is now **S3 SELECTED SIGNAL**: `SEARCHING` when no stable candidate, `SELECTED` with a cyan marker after two matched S2 frames, and `HANG` with a countdown after matching peak disappears. Transmit on GMRS CH1 (~462.5625 MHz), release PTT, then test CH7 (~462.7125 MHz). Selection should not jump among nearby spur peaks while an existing candidate remains present. Release time is 1.2 seconds measured from last match in *real time*, checked on incoming FFT frames; with 2–3 FPS it may appear to take slightly longer on screen. At two feet, multiple apparent candidates can reflect front-end overload, so also test at a greater distance. The cyan marker does **not** mean demodulation or audio; this is only RF peak selection.
+
+## S4 test: speaker audio and detection sensitivity
+
+The footer includes **MIN RF CONTRAST +15 dB**. This is not the former rtl_fm squelch and does not alter receiver gain: it is the minimum FFT spectral contrast above local noise that can become a candidate. **Increase dB to reject weaker peaks; decrease to receive weaker signals.** Range 8–30 dB. A threshold change resets short-lived candidate and selected-signal history and takes effect during capture. Setting is in-memory for the current server run.
+
+To test: press START CAPTURE, confirm it still draws a live FFT. With the walkie-talkie at a reasonable distance from the antenna (avoid front-end overload), PTT on **GMRS CH1 462.5625 MHz**, then **CH7 462.7125 MHz**. Each should enter SELECTED and show **S4 LOCAL AUDIO: RECEIVING**, with intelligible speech from the **rackio speaker only**. During idle, audio should be muted; after PTT release, HANG is muted and selection releases in approximately 1.2 seconds. Try increasing sensitivity threshold from +15 to +18 if unwanted candidates recur, or reducing to +12 if real transmissions are missed. Do not change the Linux RTL-SDR shared library.
+
+FFT candidates across the 1.7 MHz capture can still be displayed, but **only peaks within +/-9 kHz of GMRS 1–7 center frequencies may be selected for audio**; anything else is ignored by the selector at this stage. `spectrum.audio_frequency_mhz` reports the exact nominal GMRS channel selected for demod (distinct from FFT-estimated selected frequency). `spectrum.audio`/health shows ALSA error if present. Strong nearby PTT signals may overload an NESDR, generating spurious candidates and distorted audio. For debugging, test at several feet or behind a wall; compare to old rtl_fm test if needed.
+
+Run all offline tests first: `python -m unittest discover -s tests`. New synthetic DSP test covers 2.048 MHz IQ downmix/64 kHz FM/24 kHz PCM. **S4 has not yet been validated on rackio hardware**. Any audio glitches, selection problems, or change in the established 2–3 FFT updates/s should be treated as field-test feedback rather than a guaranteed behavior.

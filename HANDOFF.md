@@ -1,6 +1,6 @@
 # SDRbox — handoff (2026-11-11)
 
-**Direction: spectrum-first SDR monitor only.** User explicitly asked to remove all old sequential scanning modes and associated code and redesign the interface around real FFT data. v0.9 S3 signal selection is now committed, **awaiting rackio field verification**. S2 was field-tested: no idle false positives observed in that session, multiple peaks with nearby walkie-talkie, correct frequency strongest. The user already approved the v0.7 redesigned spectrum-first interface.
+**Direction: spectrum-first SDR monitor only.** User explicitly asked to remove all old sequential scanning modes and associated code and redesign the interface around real FFT data. S3 selection is **field verified** on rackio (SEARCHING/SELECTED/HANG/resume). v1.0 S4 audio and sensitivity are committed and **not yet tested on the real rack**. S2 was field-tested: no idle false positives observed in that session, multiple peaks with nearby walkie-talkie, correct frequency strongest. The user already approved the v0.7 redesigned spectrum-first interface.
 
 ## Proven hardware & latest test
 
@@ -42,3 +42,9 @@ User observed no idle false positives in current test, and transmitting with tal
 ## S3 test requested 2026-11-11
 
 Run `python -m unittest discover -s tests` and restart Uvicorn. With live IQ capture, transmit CH1: after S2's 2-frame confirmation, one candidate should become SELECTED (cyan marker, frequency near 462.5625), with other spurious candidates amber. Momentary drops should show HANG and a release countdown, then SEARCHING after ~1.2 s without a matching strong candidate. Key CH7 and check re-selection. If a competing stronger peak appears during a current selection, do not preempt; this is intentional to prevent flicker. **No audio**, no retune, no confirmed transmission/GMRS classification. S3 is still experimental and not verified on actual radio hardware yet.
+
+## S4 v1.0 pending hardware test
+
+`sdrbox/audio.py` is the new pure DSP NFM mixer/discriminator for the selected GMRS channel; it demodulates **within the same 2.048 MS/s wide IQ capture**, not a tuner retune. `sdrbox/spectrum.py` starts one `aplay` (24 kHz 16-bit mono), feeds silence while idle, selects nearest GMRS channel for audio only within +/-9 kHz, and mutes on HANG. Audio errors are exposed in `spectrum.audio` and `state.audio`. The user can change `threshold_db` 8–30 in the footer; default 15 dB filters prior 12.9 dB lock and rising number means LESS sensitive. Threshold adjustment is available while running, resets candidate/selection history, and does not retune the USB device. Full-window RF peaks remain visible even outside GMRS, but cannot be selected for NFM playback. Browser audio is not implemented.
+
+Check `python -m unittest discover -s tests` and a rackio test. Test no idle audio, PTT on CH1 and CH7 (prefer transmitter several feet away), correct selected/audio frequency, speech intelligibility, FFT cadence and silence/resume. Try +12,+15,+18 dB sensitivity; if audio clips/stutters, collect actual symptoms before touching DSP. `tests/test_audio.py` contains synthetic NFM recovery test. On-hardware test pending.

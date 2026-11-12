@@ -18,3 +18,7 @@ The original concept art `assets/scanner-mockup-option-2.webp` remains in the re
 ## S3 enhancement (v0.9)
 
 One readout now shows **S3 SELECTED SIGNAL** (frequency, SEARCHING/SELECTED/HANG status and release timer) rather than unqualified strongest-bin text. On the plot, **cyan** represents the locked signal while **amber** represents other candidate peaks, including nearby overload artifacts. No new tuning or listening controls, and no audio. The FFT remains dominant at 1280×400.
+
+## S4 controls
+
+The bottom bar now has a compact MIN RF CONTRAST +dB slider, 8–30 dB, default 15. Higher values make RF peak detection **less sensitive**. The third diagnostics row is S4 LOCAL AUDIO (RECEIVING, MUTED, ERROR/STOPPED). The chosen FFT candidate remains cyan, other candidate peaks amber. A signal selected outside GMRS is blocked from audio selection; all FFT measurements remain visible. Local audio on rackio only, with no browser stream. This is not a traditional squelch or RF gain slider.

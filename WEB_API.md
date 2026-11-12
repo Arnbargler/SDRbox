@@ -23,3 +23,7 @@ Future S2 candidate reporting is NOT implemented. Avoid sending raw IQ over ordi
 ## S3 field added to spectrum snapshots (v0.9)
 
 `spectrum.selection` has `status` (`SEARCHING`, `SELECTED`, `HANG`), `frequency_mhz` (locked approximate FFT peak frequency or null), `last_detected_mhz`, `contrast_db`, `width_khz`, `release_remaining_s`, `audio_active=false`. This is produced by a server-side selector tied to the existing S2 candidate stream; no browser controls or other commands were added. A selected peak is **not** confirmed voice or a change in tuner frequency. The receiver remains centered on 462.650 MHz for the entire capture.
+
+## S4 controls and telemetry (v1.0)
+
+POST `/api/v1/commands`: `{"command":"set_sensitivity","threshold_db":15}` (value 8–30 dB). The authoritative server state includes `threshold_db`. Spectrum snapshots include `audio` (LOCAL NFM ACTIVE/LOCAL AUDIO MUTED or ALSA error), `audio_frequency_mhz` (nominal GMRS center currently demodulated or null), and `selection.audio_active` reporting audio gating. WebSocket `state.audio` reflects the local ALSA status. No browser audio; no new receive-only frequency commands. Candidate thresholds, lock strength and audio frequency have distinct meanings.

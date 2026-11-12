@@ -20,7 +20,7 @@ A receive-only scanner running on rackio that surveys broad, overlapping RF spec
 | S03 | Candidate extraction | Estimated center, occupied bandwidth and contrast; sensible duplicate grouping | **Experimental implementation, field test pending** |
 | S04 | Robust qualification | Persistence/hysteresis rejects idle noise and transient spurs | **Two-frame persistence added; spurious rejection unverified** |
 | S05 | Signal selection | Highest-ranked qualified candidate chosen, not just largest raw FFT bin | **S3 implemented; hardware validation pending** |
-| S06 | In-window NFM listening | Voice audio on rackio; accurate candidate/channel identification | **Future** |
+| S06 | In-window NFM listening | Voice audio on rackio; accurate candidate/channel identification | **Code implemented, radio field test pending** |
 | S07 | End-of-activity logic | Correct hang/resume, HOLD, SKIP and no stuck receiver | **Future** |
 | S08 | Truthful logs/status | Real confirmed events distinct from candidate peaks/simulation; no invented dBm | **Future** |
 | S09 | Multiple windows | Add 467 MHz, then measured overlapping windows and revisit times | **Future** |

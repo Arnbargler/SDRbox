@@ -120,3 +120,7 @@ User verified real GMRS 1–7 scanner works with walkie-talkie. Squelch ~15 was 
 ## v0.4 candidate — Python-owned channel scheduling
 
 Added a dedicated Python-managed GMRS 1–7 scan profile, with single-frequency rtl_fm per channel, squelched PCM activity estimation, live requested-frequency display, real hit events, HOLD and SKIP. Existing rtl_fm multi-frequency scan remains a field-tested fallback. **v0.4 is committed, not yet verified on rackio.** Restart-per-channel retuning will likely be slower than legacy scan; benchmark dwell, activity false positives, audio and cleanup. See RUNNING.md.
+
+## v0.4 field result and fix candidate — 2026-11-11
+
+Real managed scanning runs ~1 channel/second and detects/demodulates a GMRS CH1 walkie-talkie transmission, but failed to resume after the transmission ended without manually pressing SKIP. Root cause suspected: hang-time logic only previously ran when a new PCM chunk was read, so it could not expire if `rtl_fm` closed squelch by not delivering any further chunks. Updated `scanner.py` to expire activity by wall-clock time on every loop tick, even with no new PCM. **Fix untested on rackio**; test CH1 PTT release and automatic scan resume. Keep SKIP fallback.

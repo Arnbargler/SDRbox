@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0a1212">
 <title>SDRbox | Spectrum Monitor</title>
-<link rel="stylesheet" href="/static/style.css?v=8"><script src="/static/app.js?v=8" defer></script>
+<link rel="stylesheet" href="/static/style.css?v=9"><script src="/static/app.js?v=9" defer></script>
 </head>
 <body>
 <div class="shell">
@@ -30,12 +30,12 @@
 </section>
 <aside class="insights" aria-label="Spectrum diagnostics">
 <div class="insight"><span class="insight-label">RECEIVER</span><strong id="receiver-state">IDLE</strong><small id="capture-age">No IQ samples yet</small></div>
-<div class="insight"><span class="insight-label">STRONGEST VISIBLE BIN</span><strong id="peak-frequency">— MHz</strong><small id="peak-contrast">Unqualified · not an identified transmission</small></div>
+<div class="insight selected-signal"><span class="insight-label">S3 · SELECTED SIGNAL <span id="selection-status">SEARCHING</span></span><strong id="peak-frequency">— MHz</strong><small id="peak-contrast">No persistent candidate selected</small></div>
 <div class="insight"><span class="insight-label">IQ CAPTURE</span><strong>2.048 <span class="smaller">MS/s</span></strong><small>512 bins · uncalibrated relative dB</small></div>
 <div class="insight candidates"><span class="insight-label">S2 · SPECTRAL CANDIDATES <span id="candidate-count">0</span></span><div id="candidate-list" aria-live="off"><small>Start capture to examine RF peaks</small></div></div>
 </aside>
 </main>
-<div class="bottom"><button id="capture" class="capture" type="button" disabled>▶ START CAPTURE</button><div class="bottom-message" id="message" role="status">Connecting to SDRbox…</div><span class="bottom-note">RECEIVE ONLY · AUDIO OFF · S2</span></div>
+<div class="bottom"><button id="capture" class="capture" type="button" disabled>▶ START CAPTURE</button><div class="bottom-message" id="message" role="status">Connecting to SDRbox…</div><span class="bottom-note">RECEIVE ONLY · AUDIO OFF · S3</span></div>
 </div>
 </body>
 </html>

@@ -1,24 +1,13 @@
-# SDRbox UI — spectrum-first (v0.7)
+# SDRbox browser interface (1280×400)
 
-The user chose to **retire the classic scanner interface** after proving that wideband IQ spectrum updates live at 2–3 Hz and shows a real GMRS CH1 spike.
+The live UI is served from `sdrbox/static/`, not from the historical image `assets/scanner-mockup-option-2.webp`.
 
-## Layout at 1280×400
+- Header: connection and capture status; only GMRS 462 is active (467/AIR/CB/CUSTOM are disabled future options).
+- Main live FFT: green relative RF power, amber local noise floor, dashed channel centers, amber candidate peaks and cyan **selected** channel.
+- FULL WINDOW and GMRS 1–7 buttons change only the plotted range; they never retune the SDR.
+- Diagnostics: receiver state and update time, S3 SELECTED / SEARCHING / HANG with nominal GMRS frequency, S4 local audio status and compact throughput diagnostics, plus strongest two persistent candidates.
+- Footer: START/STOP CAPTURE, **MIN RF CONTRAST** slider (+8 through +30 dB, default +15; raising it makes detection less sensitive), and status messages.
 
-- Compact header with SDRbox, LAN connection and receiver state.
-- Fixed **GMRS 462 active window** selector and clearly disabled future GMRS 467/AIR/CB/CUSTOM labels (not active controls).
-- **Dominant live spectrum graph** with real RF power, local noise baseline, channel markers and calibrated frequency axis (the RF values themselves are not calibrated dBm).
-- Full-window/GMRS 1–7 *visual* zoom controls.
-- Right-hand diagnostic column: running state, last capture time, strongest **unqualified** FFT bin and contrast, sample rate, future signal-selection status.
-- Bottom START/STOP CAPTURE button and truthful no-audio label.
+Audio is played on rackio through ALSA, not through the browser. The 1.536 MS/s IQ stream produces a plotted span of 462.000–463.300 MHz. The status line includes capture supply ratio, average USB read time R, cumulative average audio DSP time P, and discarded IQ blocks. None of these numbers is calibrated RF power.
 
-Only a single active window. No setting or mode popover, old bank toggles, squelch, HOLD, SKIP, hit logging or simulated state. Optional future layout changes should be driven by real signals and candidate detection.
-
-The original concept art `assets/scanner-mockup-option-2.webp` remains in the repository as **historical visual reference**, not the current running design. Local HTML/CSS/JS source is under `sdrbox/static/`.
-
-## S3 enhancement (v0.9)
-
-One readout now shows **S3 SELECTED SIGNAL** (frequency, SEARCHING/SELECTED/HANG status and release timer) rather than unqualified strongest-bin text. On the plot, **cyan** represents the locked signal while **amber** represents other candidate peaks, including nearby overload artifacts. No new tuning or listening controls, and no audio. The FFT remains dominant at 1280×400.
-
-## S4 controls
-
-The bottom bar now has a compact MIN RF CONTRAST +dB slider, 8–30 dB, default 15. Higher values make RF peak detection **less sensitive**. The third diagnostics row is S4 LOCAL AUDIO (RECEIVING, MUTED, ERROR/STOPPED). The chosen FFT candidate remains cyan, other candidate peaks amber. A signal selected outside GMRS is blocked from audio selection; all FFT measurements remain visible. Local audio on rackio only, with no browser stream. This is not a traditional squelch or RF gain slider.
+No sequential scanner channels or profiles, HOLD/SKIP controls, hit log, fake meter, or second display.
